@@ -4,7 +4,7 @@ Parameters:
   HostedZoneName:
     Type: String
     Description: Hosted Zone to add A records to
-    Default: ***REMOVED***
+    Default: api.mycompany.com.
   Subdomain:
     Type: String
     Description: Subdomain for the A record to create (i.e. dev)
@@ -12,11 +12,11 @@ Parameters:
   LoadBalancerDNSName:
     Type: String
     Description: External load balancer DNS name
-    Default: ***REMOVED***
+    Default: changeme
   LoadBalancerHostedZoneId:
     Type: String
     Description: External load balancer Canonical Hosted Zone Id 
-    Default: ***REMOVED***
+    Default: changeme
 
 Resources:
   ApiDNSRecord:
