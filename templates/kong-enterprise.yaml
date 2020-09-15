@@ -1,0 +1,918 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Tyler Technologies Kong Enterprise Template
+Parameters:
+  VpcCidr:
+    Description: CIDR Block of the VPC
+    Type: String
+  InternalLoadBalancer:
+    Type: String
+  PublicLoadBalancer:
+    Type: String
+  InternalLoadBalancerARN:
+    Type: String
+  PublicLoadBalancerARN:
+    Type: String
+  PrivateSubnets:
+    Type: CommaDelimitedList
+  PrivateSubnetAZs:
+    Type: CommaDelimitedList
+  KongSecurityGroup:
+    Description: The security group in which the Kong nodes reside
+    Type: AWS::EC2::SecurityGroup::Id
+  VPCID:
+    Description: 'ID of the VPC (e.g., vpc-0343606e).'
+    Type: 'AWS::EC2::VPC::Id'
+  LoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup::Id
+  RedisEndpointAddress:
+    Type: String
+  RedisEndpointPort:
+    Type: String
+  RedisPassword:
+    Type: String
+  KongProxyAccess:
+    Description: The IP address range that can be used to access the Kong proxy port 8000
+    Type: String
+    MinLength: '9'
+    MaxLength: '18'
+    Default: 0.0.0.0/0
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x
+  KongAdminAccess:
+    Description: >-
+      The IP address range that can be used to access the Kong Admin port 8001
+      and 8002
+    Type: String
+    MinLength: '9'
+    MaxLength: '18'
+    Default: 0.0.0.0/0
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x
+  DBName:
+    Default: kong
+    Description: The database name
+    Type: String
+    MinLength: '1'
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+    ConstraintDescription: must begin with a letter and contain only alphanumeric characters
+  DBHost:
+    Description: 'Optional- The database host dns, leave blank to start a new RDS instance'
+    Type: String
+    Default: ''
+  DBPort:
+    Default: '5432'
+    Description: Conditional- required if DBHost provided. The database port
+    Type: String
+    AllowedPattern: '[0-9]+'
+    ConstraintDescription: must be a valid port number
+  DBUsername:
+    Default: kong
+    Description: The database admin account username
+    Type: String
+    MinLength: '1'
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+    ConstraintDescription: must begin with a letter and contain only alphanumeric characters
+  DBPassword:
+    Default: changeme
+    NoEcho: 'true'
+    Description: The database admin account password
+    Type: String
+    MinLength: '8'
+  CollectorDBName:
+    Default: collector
+    Description: The database name
+    Type: String
+    MinLength: '1'
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+    ConstraintDescription: must begin with a letter and contain only alphanumeric characters
+  CollectorDBHost:
+    Description: 'Optional- The database host dns, leave blank to start a new RDS instance'
+    Type: String
+    Default: ''
+  CollectorDBPort:
+    Default: '5432'
+    Description: Conditional- required if DBHost provided. The database port
+    Type: String
+    AllowedPattern: '[0-9]+'
+    ConstraintDescription: must be a valid port number
+  CollectorDBUsername:
+    Default: collector
+    Description: The database admin account username
+    Type: String
+    MinLength: '1'
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+    ConstraintDescription: must begin with a letter and contain only alphanumeric characters
+  CollectorDBPassword:
+    Default: changeme
+    NoEcho: 'true'
+    Description: The database admin account password
+    Type: String
+    MinLength: '8'
+  KongAdminPassword:
+    Default: changeme
+    NoEcho: 'true'
+    Description: The kong_admin account password
+    Type: String
+    MinLength: '8'
+  KongEnterpriseAccount:
+    Description: Account name for logging into Kong Enterprise Bintray
+    Type: String
+    MinLength: '1'
+    Default: changeme
+  KongEnterprisePassword:
+    Description: Account password for logging into Kong Enterprise Bintray
+    Type: String
+    NoEcho: 'true'
+    MinLength: '1'
+  KongEnterpriseLicensePath:
+    Description: Path to the license file in bintray
+    Type: String
+    Default: changeme
+  KongKeyName:
+    Description: >-
+      Required- Name of an existing EC2 KeyPair to enable SSH access to the
+      instances for Kong
+    Type: 'AWS::EC2::KeyPair::KeyName'
+    Default: ''
+  KongFleetMaxSize:
+    Description: Max Number of Kong instances
+    Type: Number
+    Default: '3'
+    MinValue: '1'
+  KongFleetDesiredSize:
+    Description: Desired Number of Kong instances
+    Type: Number
+    Default: '3'
+    MinValue: '1'
+  KongVersion:
+    Description: Kong version. Leave it blank to install latest version
+    Type: String
+    Default: 1.3.0.2
+  CollectorFleetMaxSize:
+    Description: Max Number of Kong Collector instances
+    Type: Number
+    Default: '1'
+    MinValue: '1'
+  CollectorFleetDesiredSize:
+    Description: Desired Number of Kong Collector instances
+    Type: Number
+    Default: '1'
+    MinValue: '1'
+  KongInstanceType:
+    Description: Kong EC2 instance type
+    Type: String
+    Default: c5.2xlarge
+    AllowedValues:
+      - t3.micro
+      - t3.small
+      - t3.medium
+      - t3.large
+      - m5.large
+      - m5.xlarge
+      - m5.2xlarge
+      - m5.4xlarge
+      - m5.8xlarge
+      - c5.large
+      - c5.xlarge
+      - c5.2xlarge
+      - c5.4xlarge
+      - c5.9xlarge
+      - c5n.large
+      - c5n.xlarge
+      - c5n.2xlarge
+      - c5n.4xlarge
+      - c5n.9xlarge
+      - r5.large
+      - r5.xlarge
+      - r5.2xlarge
+      - r5.4xlarge
+      - r5.8xlarge
+      - r5n.large
+      - r5n.xlarge
+      - r5n.2xlarge
+      - r5n.4xlarge
+      - r5n.8xlarge
+    ConstraintDescription: must be a valid EC2 instance type
+  CollectorInstanceType:
+    Description: Kong Collector EC2 instance type
+    Type: String
+    Default: m5.large
+    AllowedValues:
+      - t3.micro
+      - t3.small
+      - t3.medium
+      - t3.large
+      - m5.large
+      - m5.xlarge
+      - m5.2xlarge
+      - m5.4xlarge
+      - m5.8xlarge
+      - c5.large
+      - c5.xlarge
+      - c5.2xlarge
+      - c5.4xlarge
+      - c5.9xlarge
+      - c5n.large
+      - c5n.xlarge
+      - c5n.2xlarge
+      - c5n.4xlarge
+      - c5n.9xlarge
+      - r5.large
+      - r5.xlarge
+      - r5.2xlarge
+      - r5.4xlarge
+      - r5.8xlarge
+      - r5n.large
+      - r5n.xlarge
+      - r5n.2xlarge
+      - r5n.4xlarge
+      - r5n.8xlarge
+    ConstraintDescription: must be a valid EC2 instance type
+  KongBootstrapMigration:
+    Description: >-
+      Run the Kong bootstrap migrations by default, set it to false to disable
+      migrations
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+  KongTLSCertArn:
+    Description: Arn of ACM certificate to use on ALB
+    Type: String
+    Default: ''
+  KongUrl:
+    Description: Url to Kong
+    Type: String
+    Default: proxy.tylerdev.io
+  SMTPHost:
+    Description: Host of the SMTP Server
+    Type: String
+    Default: ''
+  SMTPPort:
+    Description: Port of the SMTP Server
+    Type: Number
+    Default: '587'
+  SMTPStartTLS:
+    Description: Encrypt with STARTTLS (normally used with port 587)
+    Type: String
+    Default: 'on'
+    AllowedValues:
+      - 'on'
+      - 'off'
+  SMTPSSL:
+    Description: Encrypt with SSL (normally used with port 465)
+    Type: String
+    Default: 'off'
+    AllowedValues:
+      - 'on'
+      - 'off'
+  SMTPUsername:
+    Description: Username used for authentication with the SMTP server
+    Type: String
+    Default: ''
+  SMTPPassword:
+    Description: Password used for authentication with the SMTP server
+    Type: String
+    NoEcho: 'true'
+    Default: ''
+  SMTPAuthType:
+    Description: Authentication Type
+    Type: String
+    Default: plain
+    AllowedValues:
+      - plain
+      - login
+      - ''
+  SMTPDomain:
+    Description: The domain used in the EHLO connect and part of the Message-ID header
+    Type: String
+    Default: ''
+  SMTPAdminEmails:
+    Description: >-
+      Comma separated list of admin e-mail addresses: ex1@domain.com,
+      ex2@domain.com
+    Type: String
+    Default: ''
+  EmailsFrom:
+    Description: >-
+      The name and email address for the From header included in all
+      emails: Example Name <ex1@domain.com>
+    Type: String
+    Default: Kong Portal Admin <admin@domain.com>
+  EmailsReplyTo:
+    Description: >-
+      The email address for the Reply-To header included in all emails
+    Type: String
+    Default: No Reply <no-reply@domain.com>
+  KongMemCacheSize:
+    Description: >-
+      Size of each of the two in-memory caches for database entities. The accepted
+      units are k and m, with a minimum recommended value of a few MBs
+    Type: String
+    Default: 1024m
+  PgMaxConcurrentQueries:
+    Description: >-
+      Sets the maximum number of concurrent queries that can be executing at any given
+      time. This limit is enforced per worker process; the total number of concurrent
+      queries for this node will be will be: pg_max_concurrent_queries * nginx_worker_processes.
+      The default value of 0 removes this concurrency limitation.
+    Type: String
+    Default: 0
+  KongLogLevel:
+    Description: Log Level for Kong Nodes
+    Type: String
+    Default: warn
+    AllowedValues:
+      - debug
+      - info
+      - notice
+      - warn
+      - error
+      - crit
+Mappings:
+  RegionKongAmiMap:
+    us-east-1:
+      HVM: ami-0b69ea66ff7391e80
+    us-east-2:
+      HVM: ami-00c03f7f7f2ec15c3
+    us-west-1:
+      HVM: ami-0245d318c6788de52
+    us-west-2:
+      HVM: ami-04b762b4289fba92b
+    eu-west-1:
+      HVM: ami-0ce71448843cb18a1
+    eu-west-2:
+      HVM: ami-00a1270ce1e007c27
+    eu-central-1:
+      HVM: ami-00aa4671cbf840d82
+    ap-southeast-1:
+      HVM: ami-048a01c78f7bae4aa
+    ap-southeast-2:
+      HVM: ami-03ed5bd63ba378bd8
+    sa-east-1:
+      HVM: ami-0a1f49a762473adbd
+Resources:
+  ASGUpdateRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      Path: /
+      Policies:
+        - PolicyName: ASGUpdateRole
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Action:
+                  - 'ec2:Describe*'
+                  - 'cloudformation:DescribeStackResource'
+                  - 'cloudformation:DescribeStacks'
+                  - 'ssm:UpdateInstanceInformation'
+                Resource:
+                  - '*'
+                Effect: Allow
+              - Effect: Allow
+                Action: 'autoscaling:UpdateAutoScalingGroup'
+                Resource:
+                  - '*'
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action:
+              - 'sts:AssumeRole'
+            Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+
+  ASGUpdateProfile:
+    Type: 'AWS::IAM::InstanceProfile'
+    Properties:
+      Path: /
+      Roles:
+        - !Ref ASGUpdateRole
+
+  KongScalingGroup:
+    Type: 'AWS::AutoScaling::AutoScalingGroup'
+    CreationPolicy:
+      ResourceSignal:
+        Count: !Ref KongFleetDesiredSize
+        Timeout: PT15M
+
+    Properties:
+      AvailabilityZones: !Ref PrivateSubnetAZs
+      VPCZoneIdentifier: !Ref PrivateSubnets
+      LaunchConfigurationName: !Ref KongLaunchConfig
+      MinSize: '1'
+      MaxSize: '1'
+      DesiredCapacity: '1'
+      TargetGroupARNs:
+        - !Ref TargetGroupProxy
+        - !Ref TargetGroupApi
+        - !Ref TargetGroupGui
+        - !Ref TargetGroupPortalApi
+        - !Ref TargetGroupPortalGui
+        - !Ref InternalTargetGroupApi
+      Tags:
+        - Key: Name
+          Value: !Join ['-', [!Ref 'AWS::StackName', Kong]]
+          PropagateAtLaunch: 'true'
+
+  KongLaunchConfig:
+    Type: 'AWS::AutoScaling::LaunchConfiguration'
+    Properties:
+      AssociatePublicIpAddress: false
+      ImageId: !FindInMap
+        - RegionKongAmiMap
+        - !Ref 'AWS::Region'
+        - HVM
+      InstanceType: !Ref KongInstanceType
+      BlockDeviceMappings: 
+        - DeviceName: /dev/xvda
+          Ebs: 
+            VolumeSize: 50
+      InstanceMonitoring: true
+      KeyName: !Ref KongKeyName
+      SecurityGroups:
+        - !Ref KongSecurityGroup
+      IamInstanceProfile: !Ref ASGUpdateProfile
+      UserData:
+        Fn::Base64: !Sub |
+          Content-Type: multipart/mixed; boundary="//"
+          MIME-Version: 1.0
+
+          --//
+          Content-Type: text/cloud-config; charset="us-ascii"
+          MIME-Version: 1.0
+          Content-Transfer-Encoding: 7bit
+          Content-Disposition: attachment; filename="cloud-config.txt"
+
+          #cloud-config
+          cloud_final_modules:
+          - [scripts-user, always]
+
+          --//
+          Content-Type: text/x-shellscript; charset="us-ascii"
+          MIME-Version: 1.0
+          Content-Transfer-Encoding: 7bit
+          Content-Disposition: attachment; filename="userdata.txt"
+
+          #!/bin/bash
+          if [[ -f "/root/kong-env" ]]; then
+            source /root/kong-env
+            kong start
+          else
+            yum update -y aws-cfn-bootstrap
+            echo '* soft nofile 65000' >> /etc/security/limits.conf
+            echo '* hard nofile 65000' >> /etc/security/limits.conf
+            kong_version=${KongVersion}
+            if [ "$kong_version" != "" ]; then
+              kong_version="-$kong_version"
+            fi
+            kong_migrations=${KongBootstrapMigration}
+            export KONG_DATABASE=postgres
+            TLSCert=${KongTLSCertArn}
+            export KONG_PG_HOST=${DBHost}
+            export KONG_PG_PORT=${DBPort}
+            export KONG_PG_USER=${DBUsername}
+            export KONG_PG_DATABASE=${DBName}
+            export KONG_PG_PASSWORD=${DBPassword}
+            export KONG_ADMIN_LISTEN='0.0.0.0:8001, 0.0.0.0:8444 ssl'
+            export KONG_ADMIN_GUI_LISTEN='0.0.0.0:8002, 0.0.0.0:8445 ssl'
+            export KONG_ADMIN_GUI_FLAGS='{"IMMUNITY_ENABLED":true}'
+            export KONG_PORTAL='on'
+            export KONG_ENFORCE_RBAC='on'
+            export KONG_ADMIN_GUI_AUTH='basic-auth'
+            export KONG_PASSWORD='${KongAdminPassword}'
+            export KONG_PORTAL_GUI_PROTOCOL=https
+            export KONG_PORTAL_GUI_HOST='admin.${KongUrl}:8446'
+            export KONG_PROXY_URL='https://${KongUrl}'
+            export KONG_PROXY_LISTEN='0.0.0.0:8000, 0.0.0.0:443 ssl http2'
+            export KONG_TRUSTED_IPS='0.0.0.0/0,::/0'
+            export KONG_REAL_IP_HEADER='X-Forwarded-For'
+            export KONG_REAL_IP_RECURSIVE='on'
+            export KONG_ADMIN_GUI_URL=$KONG_PORTAL_GUI_PROTOCOL'://admin.${KongUrl}:'8445
+            export KONG_ADMIN_GUI_SESSION_CONF='{"secret":"${AWS::StackName}","cookie_secure":true}'
+            export KONG_PORTAL_GUI_USE_SUBDOMAINS=0
+            export KONG_ENTERPRISE_ACCOUNT=$(python -c "import urllib;print urllib.quote(\"${KongEnterpriseAccount}\")")
+            export KONG_PORTAL_SESSION_CONF='{"secret":"${AWS::StackName}","cookie_name":"portal_cookie","storage":"kong","cookie_secure":true}'
+            export KONG_SMTP_HOST=${SMTPHost}
+            export KONG_SMTP_PORT=${SMTPPort}
+            export KONG_SMTP_STARTTLS=${SMTPStartTLS}
+            export KONG_SMTP_SSL=${SMTPSSL}
+            export KONG_SMTP_USERNAME=${SMTPUsername}
+            export KONG_SMTP_PASSWORD=${SMTPPassword}
+            export KONG_SMTP_AUTH_TYPE=${SMTPAuthType}
+            export KONG_SMTP_DOMAIN=${SMTPDomain}
+            export KONG_SMTP_ADMIN_EMAILS='${SMTPAdminEmails}'
+            export KONG_SMTP_MOCK=off
+            export KONG_ANONYMOUS_REPORTS=off
+            export KONG_LOG_LEVEL=${KongLogLevel}
+            export KONG_NGINX_WORKER_PROCESSES=2
+            export KONG_PORTAL_EMAILS_FROM='${EmailsFrom}'
+            export KONG_PORTAL_EMAILS_REPLY_TO='${EmailsReplyTo}'
+            export KONG_ADMIN_EMAILS_FROM='${EmailsFrom}'
+            export KONG_ADMIN_EMAILS_REPLY_TO='${EmailsReplyTo}'
+            export KONG_MEM_CACHE_SIZE='${KongMemCacheSize}'
+            export KONG_PG_MAX_CONCURRENT_QUERIES='${PgMaxConcurrentQueries}'
+            echo "[kong] installing Kong with following environments:"
+            env
+            mkdir /usr/local/kong && chown ec2-user /usr/local/kong
+            wget https://$KONG_ENTERPRISE_ACCOUNT:${KongEnterprisePassword}@bintray.com/kong/kong-enterprise-edition-aws/rpm -O bintray-kong-kong-enterprise-edition-aws.repo --auth-no-challenge
+            if [ "$?" -ne "0" ]; then
+              /opt/aws/bin/cfn-signal -e 1 --stack ${AWS::StackName} --resource KongScalingGroup --region ${AWS::Region}
+              echo "[kong] failed to install kong$kong_version, exiting..."
+              exit
+            fi
+            wget https://$KONG_ENTERPRISE_ACCOUNT:${KongEnterprisePassword}@kong.bintray.com/${KongEnterpriseLicensePath} -O license.json --auth-no-challenge
+            if [ "$?" -ne "0" ]; then
+              /opt/aws/bin/cfn-signal -e 1 --stack ${AWS::StackName} --resource KongScalingGroup --region ${AWS::Region}
+              echo "[kong] failed to install kong$kong_version, exiting..."
+              exit
+            fi
+            sed -i -e "s/^baseurl=.*/baseurl=https:\/\/$KONG_ENTERPRISE_ACCOUNT:${KongEnterprisePassword}@kong.bintray.com\/kong-enterprise-edition-aws/" bintray-kong-kong-enterprise-edition-aws.repo
+            mv bintray-kong-kong-enterprise-edition-aws.repo /etc/yum.repos.d/
+            yum update -y
+            yum install -y epel-release
+            amazon-linux-extras install -y epel
+            yum install -y kong-enterprise-edition$kong_version
+            if [ "$?" -ne "0" ]; then
+              /opt/aws/bin/cfn-signal -e 1 --stack ${AWS::StackName} --resource KongScalingGroup --region ${AWS::Region}
+              echo "[kong] failed to install kong$kong_version, exiting..."
+              exit
+            fi
+            mv license.json /etc/kong/
+            chown ec2-user /etc/kong/license.json
+            chown -R ec2-user /usr/local/kong
+            if [ "$kong_migrations" == "true" ]; then
+              echo "[kong] starting migrations..."
+              /usr/local/bin/kong migrations bootstrap
+            fi
+            ulimit -n 4096
+            /usr/local/bin/kong start
+            if ! /usr/local/bin/kong health
+            then
+              echo "[kong] failed to start kong, exiting..."
+              /opt/aws/bin/cfn-signal -e 1 --stack ${AWS::StackName} --resource KongScalingGroup --region ${AWS::Region}
+              exit
+            fi
+            echo "configure logrotate"
+            mv /etc/cron.daily/logrotate /etc/cron.hourly/logrotate
+            curl https://<URI_to_S3_bucket>/configs/logrotate/kong -o /etc/logrotate.d/kong
+            instance_id=`curl http://169.254.169.254/latest/meta-data/instance-id`
+            STACK_STATUS=$(aws cloudformation describe-stacks --stack-name ${AWS::StackName} --query "Stacks[*].StackStatus" --region ${AWS::Region} --output text)
+            if [ "$STACK_STATUS" == "CREATE_IN_PROGRESS" ]; then
+              autoscale_group=`aws ec2 describe-tags --filters "Name=resource-id,Values=$instance_id" --region ${AWS::Region} "Name=key,Values=aws:autoscaling:groupName" | sed -ne 's/[ ]*"Value":\s"\(.*\)",/\1/p'`
+              aws autoscaling update-auto-scaling-group --auto-scaling-group-name $autoscale_group --region ${AWS::Region} --max-size ${KongFleetMaxSize} --desired-capacity ${KongFleetDesiredSize}
+            fi
+            /opt/aws/bin/cfn-signal -e 0 --stack ${AWS::StackName} --resource KongScalingGroup --region ${AWS::Region}
+
+            env | grep KONG_ | sort | sed -e "s/^KONG_/export\ KONG_/g; s/=/='/g; s/$/'/g" > /root/kong-env
+          fi
+
+  CollectorScalingGroup:
+    Type: 'AWS::AutoScaling::AutoScalingGroup'
+    CreationPolicy:
+      ResourceSignal:
+        Count: !Ref CollectorFleetDesiredSize
+        Timeout: PT15M
+    Properties:
+      AvailabilityZones: !Ref PrivateSubnetAZs
+      VPCZoneIdentifier: !Ref PrivateSubnets
+      LaunchConfigurationName: !Ref CollectorLaunchConfig
+      MinSize: '1'
+      MaxSize: '1'
+      DesiredCapacity: '1'
+      TargetGroupARNs:
+        - !Ref InternalTargetGroupCollector
+      Tags:
+        - Key: Name
+          Value: !Join ['-', [!Ref 'AWS::StackName', Collector]]
+          PropagateAtLaunch: 'true'
+
+  CollectorLaunchConfig:
+    Type: 'AWS::AutoScaling::LaunchConfiguration'
+    Properties:
+      AssociatePublicIpAddress: false
+      ImageId: !FindInMap
+        - RegionKongAmiMap
+        - !Ref 'AWS::Region'
+        - HVM
+      InstanceType: !Ref CollectorInstanceType
+      BlockDeviceMappings: 
+        - DeviceName: /dev/xvda
+          Ebs: 
+            VolumeSize: 20
+      InstanceMonitoring: true
+      KeyName: !Ref KongKeyName
+      SecurityGroups:
+        - !Ref KongSecurityGroup
+      IamInstanceProfile: !Ref ASGUpdateProfile
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          yum update -y
+          yum install -y jq
+          echo '* soft nofile 65000' >> /etc/security/limits.conf
+          echo '* hard nofile 65000' >> /etc/security/limits.conf
+          amazon-linux-extras install docker
+          service docker start
+          usermod -aG docker ec2-user
+          systemctl enable docker
+          curl -L "https://github.com/docker/compose/releases/download/1.25.1/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+          chmod +x /usr/local/bin/docker-compose
+          export KONG_HOST=${InternalLoadBalancer}
+          export KONG_PORT=8001
+          export KONG_PROTOCOL=http
+          export KONG_ADMIN_TOKEN=${KongAdminPassword}
+          export SQLALCHEMY_DATABASE_URI=postgres://${CollectorDBUsername}:${CollectorDBPassword}@${CollectorDBHost}:${CollectorDBPort}/${CollectorDBName}
+          export REDIS_URI=redis://${RedisEndpointAddress}:${RedisEndpointPort}
+          docker login -u ${KongEnterpriseAccount} -p ${KongEnterprisePassword} kong-docker-kong-brain-immunity-base.bintray.io
+          curl https://<URI_to_S3_bucket>/configs/brain-immunity/docker-compose.yml -o /docker-compose.yml
+          echo '[collector] starting collector with the following env variables:'
+          env
+          docker-compose -f docker-compose.yml up -d
+          curl http://localhost:5000/status
+          featuresAvailable=$(curl -sSL localhost:5000/status | jq '.brain.available==true and .immunity.available==true')
+          if [ "$featuresAvailable" == "false" ]; then
+            echo "[kong] failed to start kong collector, exiting..."
+            /opt/aws/bin/cfn-signal -e 1 --stack ${AWS::StackName} --resource CollectorScalingGroup --region ${AWS::Region}
+            exit
+          fi
+          instance_id=`curl http://169.254.169.254/latest/meta-data/instance-id`
+          STACK_STATUS=$(aws cloudformation describe-stacks --stack-name ${AWS::StackName} --query "Stacks[*].StackStatus" --region ${AWS::Region} --output text)
+          if [ "$STACK_STATUS" == "CREATE_IN_PROGRESS" ]; then
+            autoscale_group=`aws ec2 describe-tags --filters "Name=resource-id,Values=$instance_id" --region ${AWS::Region} "Name=key,Values=aws:autoscaling:groupName" | sed -ne 's/[ ]*"Value":\s"\(.*\)",/\1/p'`
+            aws autoscaling update-auto-scaling-group --auto-scaling-group-name $autoscale_group --region ${AWS::Region} --max-size ${CollectorFleetMaxSize} --desired-capacity ${CollectorFleetDesiredSize}
+          fi
+          /opt/aws/bin/cfn-signal -e 0 --stack ${AWS::StackName} --resource CollectorScalingGroup --region ${AWS::Region}
+
+  InternalLoadBalancerListenerApi:
+    Type: 'AWS::ElasticLoadBalancingV2::Listener'
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref InternalTargetGroupApi
+      LoadBalancerArn: !Ref InternalLoadBalancerARN
+      Port: 8001
+      Protocol: TCP
+
+  InternalLoadBalancerListenerCollector:
+    Type: 'AWS::ElasticLoadBalancingV2::Listener'
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref InternalTargetGroupCollector
+      LoadBalancerArn: !Ref InternalLoadBalancerARN
+      Port: 5000
+      Protocol: TCP
+
+  InternalTargetGroupApi:
+    Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
+    Properties:
+      Port: 8001
+      Protocol: TCP
+      VpcId: !Ref VPCID
+
+  InternalTargetGroupCollector:
+    Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
+    Properties:
+      Port: 5000
+      Protocol: TCP
+      VpcId: !Ref VPCID
+
+  TargetGroupProxy:
+    Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
+    Properties:
+      Port: 443
+      Protocol: HTTPS
+      VpcId: !Ref VPCID
+      Matcher:
+        HttpCode: '404'
+      HealthyThresholdCount: 3
+      UnhealthyThresholdCount: 5
+      HealthCheckIntervalSeconds: 90
+      HealthCheckTimeoutSeconds: 60
+
+  TargetGroupApi:
+    Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
+    Properties:
+      Port: 8444
+      Protocol: HTTPS
+      VpcId: !Ref VPCID
+      Matcher:
+        HttpCode: '401'
+      HealthyThresholdCount: 3
+      UnhealthyThresholdCount: 5
+      HealthCheckIntervalSeconds: 90
+      HealthCheckTimeoutSeconds: 60
+
+  TargetGroupGui:
+    Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
+    Properties:
+      Port: 8445
+      Protocol: HTTPS
+      VpcId: !Ref VPCID
+      Matcher:
+        HttpCode: '200'
+      HealthyThresholdCount: 3
+      UnhealthyThresholdCount: 5
+      HealthCheckIntervalSeconds: 90
+      HealthCheckTimeoutSeconds: 60
+
+  TargetGroupPortalApi:
+    Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
+    Properties:
+      Port: 8447
+      Protocol: HTTPS
+      VpcId: !Ref VPCID
+      Matcher:
+        HttpCode: '401'
+      HealthyThresholdCount: 3
+      UnhealthyThresholdCount: 5
+      HealthCheckIntervalSeconds: 90
+      HealthCheckTimeoutSeconds: 60
+
+  TargetGroupPortalGui:
+    Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
+    Properties:
+      Port: 8446
+      Protocol: HTTPS
+      VpcId: !Ref VPCID
+      Matcher:
+        HttpCode: '200'
+      HealthyThresholdCount: 3
+      UnhealthyThresholdCount: 5
+      HealthCheckIntervalSeconds: 90
+      HealthCheckTimeoutSeconds: 60
+
+  LoadBalancerListenerProxy:
+    Type: 'AWS::ElasticLoadBalancingV2::Listener'
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroupProxy
+      LoadBalancerArn: !Ref PublicLoadBalancerARN
+      Port: 443
+      Protocol: HTTPS
+      Certificates:
+        - CertificateArn: !Ref KongTLSCertArn
+
+  LoadBalancerListenerApi:
+    Type: 'AWS::ElasticLoadBalancingV2::Listener'
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroupApi
+      LoadBalancerArn: !Ref PublicLoadBalancerARN
+      Port: 8444
+      Protocol: HTTPS
+      Certificates:
+        - CertificateArn: !Ref KongTLSCertArn
+
+  LoadBalancerListenerGui:
+    Type: 'AWS::ElasticLoadBalancingV2::Listener'
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroupGui
+      LoadBalancerArn: !Ref PublicLoadBalancerARN
+      Port: 8445
+      Protocol: HTTPS
+      Certificates:
+        - CertificateArn: !Ref KongTLSCertArn
+
+  LoadBalancerListenerPortalApi:
+    Type: 'AWS::ElasticLoadBalancingV2::Listener'
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroupPortalApi
+      LoadBalancerArn: !Ref PublicLoadBalancerARN
+      Port: 8447
+      Protocol: HTTPS
+      Certificates:
+        - CertificateArn: !Ref KongTLSCertArn
+
+  LoadBalancerListenerPortalGui:
+    Type: 'AWS::ElasticLoadBalancingV2::Listener'
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroupPortalGui
+      LoadBalancerArn: !Ref PublicLoadBalancerARN
+      Port: 8446
+      Protocol: HTTPS
+      Certificates:
+        - CertificateArn: !Ref KongTLSCertArn
+
+  IngressCollector:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      GroupId: !Ref KongSecurityGroup
+      IpProtocol: tcp
+      FromPort: 5000
+      ToPort: 5000
+      SourceSecurityGroupId: !Ref KongSecurityGroup
+
+  IngressKongCluster:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      GroupId: !Ref KongSecurityGroup
+      IpProtocol: tcp
+      FromPort: 7946
+      ToPort: 7946
+      SourceSecurityGroupId: !Ref KongSecurityGroup
+
+  IngressKongInsecure:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      GroupId: !Ref KongSecurityGroup
+      IpProtocol: tcp
+      FromPort: 8001
+      ToPort: 8004
+      SourceSecurityGroupId: !Ref KongSecurityGroup
+
+  IngressKongSecureHTTPS:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      GroupId: !Ref KongSecurityGroup
+      IpProtocol: tcp
+      FromPort: 443
+      ToPort: 443
+      SourceSecurityGroupId: !Ref KongSecurityGroup
+
+  IngressKongSecure:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      GroupId: !Ref KongSecurityGroup
+      IpProtocol: tcp
+      FromPort: 8444
+      ToPort: 8447
+      SourceSecurityGroupId: !Ref KongSecurityGroup
+
+  InternalIngressKong:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      GroupId: !Ref KongSecurityGroup
+      IpProtocol: tcp
+      FromPort: 8001
+      ToPort: 8001
+      CidrIp: !Ref VpcCidr
+
+  InternalIngressCollector:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      GroupId: !Ref KongSecurityGroup
+      IpProtocol: tcp
+      FromPort: 5000
+      ToPort: 5000
+      CidrIp: !Ref VpcCidr
+
+  ExternalAdminIngress:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      GroupId: !Ref LoadBalancerSecurityGroup
+      IpProtocol: tcp
+      FromPort: 8444
+      ToPort: 8447
+      CidrIp: !Ref KongAdminAccess
+
+  ExternalProxyIngress:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      GroupId: !Ref LoadBalancerSecurityGroup
+      IpProtocol: tcp
+      FromPort: 443
+      ToPort: 443
+      CidrIp: !Ref KongProxyAccess
+
+  LoadBalancerToKongIngressHTTPS:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      GroupId: !Ref KongSecurityGroup
+      IpProtocol: tcp
+      FromPort: 443
+      ToPort: 443
+      SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
+
+  LoadBalancerToKongIngress:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      GroupId: !Ref KongSecurityGroup
+      IpProtocol: tcp
+      FromPort: 8444
+      ToPort: 8447
+      SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
+
+Outputs:
+  ProxyURL:
+    Description: Kong Proxy URL
+    Value: !Join ['', ['https://', !Ref KongUrl]]
+  AdminURL:
+    Description: Kong Admin URL
+    Value: !Join ['', ['https://', !Ref KongUrl, ':', 8444]]
+  AdminGuiURL:
+    Description: Kong Admin GUI URL
+    Value: !Join ['', ['https://admin.', !Ref KongUrl, ':', 8445]]
+  DevPortalURL:
+    Description: Kong Dev Portal Base URL 
+    Value: !Join ['', ['https://admin.', !Ref KongUrl, ':', 8446]]

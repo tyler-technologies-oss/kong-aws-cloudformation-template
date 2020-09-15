@@ -1,0 +1,631 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Tyler Technologies Kong and Bastion Template
+Parameters:
+  HostedZoneName:
+    Type: String
+    Description: Hosted Zone to add A records to
+    Default: ''
+  Subdomain:
+    Type: String
+    Description: Subdomain for the A record to create (i.e. dev)
+    Default: dev
+  DBName:
+    Default: kong
+    Description: The database name
+    Type: String
+    MinLength: '1'
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+    ConstraintDescription: must begin with a letter and contain only alphanumeric characters
+  DBUsername:
+    Default: kong
+    Description: The database admin account username
+    Type: String
+    MinLength: '1'
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+    ConstraintDescription: must begin with a letter and contain only alphanumeric characters
+  DBPassword:
+    Default: changeme
+    NoEcho: 'true'
+    Description: The database admin account password
+    Type: String
+    MinLength: '8'
+  DBClass:
+    Default: db.r5.xlarge
+    Description: Database instance class
+    Type: String
+    AllowedValues:
+      - db.t3.small
+      - db.t3.medium
+      - db.r5.large
+      - db.r5.xlarge
+      - db.r5.2xlarge
+      - db.r5.4xlarge
+      - db.r5.12xlarge
+      - db.r5.24xlarge
+    ConstraintDescription: must select a valid database instance type - dbclass
+  DBVersion:
+    Description: Postgres version
+    Type: String
+    Default: 9.6.16
+    AllowedValues:
+      - 9.6.16
+      - '10.11'
+  DBSnapshotIdentifier:
+    Description: Optional- The RDS snapshot name to restore to the new DB instance
+    Type: String
+    Default: ''
+  CollectorDBName:
+    Default: collector
+    Description: The database name
+    Type: String
+    MinLength: '1'
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+    ConstraintDescription: must begin with a letter and contain only alphanumeric characters
+  CollectorDBHost:
+    Description: 'Optional- The database host dns, leave blank to start a new RDS instance'
+    Type: String
+    Default: ''
+  CollectorDBPort:
+    Default: '5432'
+    Description: Conditional- required if DBHost provided. The database port
+    Type: String
+    AllowedPattern: '[0-9]+'
+    ConstraintDescription: must be a valid port number
+  CollectorDBUsername:
+    Default: collector
+    Description: The database admin account username
+    Type: String
+    MinLength: '1'
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+    ConstraintDescription: must begin with a letter and contain only alphanumeric characters
+  CollectorDBPassword:
+    Default: changeme
+    NoEcho: 'true'
+    Description: The database admin account password
+    Type: String
+    MinLength: '8'
+  CollectorDBClass:
+    Default: db.r5.xlarge
+    Description: Database instance class
+    Type: String
+    AllowedValues:
+      - db.t3.small
+      - db.t3.medium
+      - db.r5.large
+      - db.r5.xlarge
+      - db.r5.2xlarge
+      - db.r5.4xlarge
+      - db.r5.12xlarge
+      - db.r5.24xlarge
+    ConstraintDescription: must select a valid database instance type
+  CollectorDBSnapshotIdentifier:
+    Description: Optional- The RDS snapshot name to restore to the new DB instance
+    Type: String
+    Default: ''
+  CacheClass:
+    Default: cache.r5.large
+    Description: Database instance class
+    Type: String
+    AllowedValues:
+      - cache.t3.micro
+      - cache.t3.small
+      - cache.t3.medium
+      - cache.m5.large
+      - cache.m5.xlarge
+      - cache.m5.2xlarge
+      - cache.m5.4xlarge
+      - cache.m5.12xlarge
+      - cache.r5.large
+      - cache.r5.xlarge
+      - cache.r5.2xlarge
+      - cache.r5.4xlarge
+      - cache.r5.12xlarge
+    ConstraintDescription: must select a valid database instance type
+  CacheNodeCount:
+    Description: Number of Redis Nodes
+    Type: Number
+    Default: '1'
+    MinValue: '1'
+  NumCacheClusters:
+    Description: Number of Redis Cache Clusters
+    Type: Number
+    Default: 2
+    MinValue: 2
+    MaxValue: 6  
+  RedisPassword:
+    Description: Password to reach redis cache cluster
+    Type: String
+    NoEcho: 'true'
+    Default: changeme
+  KongAdminPassword:
+    Default: changeme
+    NoEcho: 'true'
+    Description: The kong_admin account password
+    Type: String
+    MinLength: '8'
+  KongEnterpriseAccount:
+    Description: Account name for logging into Kong Enterprise Bintray
+    Type: String
+    MinLength: '1'
+    Default: changeme
+  KongEnterprisePassword:
+    Description: Account password for logging into Kong Enterprise Bintray
+    Type: String
+    NoEcho: 'true'
+    MinLength: '1'
+    Default: changeme
+  KongEnterpriseLicensePath:
+    Description: Path to the license file in bintray
+    Type: String
+    Default: changeme
+  KongProxyAccess:
+    Description: The IP address range that can be used to access the Kong proxy port 8000
+    Type: String
+    MinLength: '9'
+    MaxLength: '18'
+    Default: 0.0.0.0/0
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x
+  KongAdminAccess:
+    Description: >-
+      The IP address range that can be used to access the Kong Admin port 8001
+      and 8002
+    Type: String
+    MinLength: '9'
+    MaxLength: '18'
+    Default: 0.0.0.0/0
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x
+  KongKeyName:
+    Description: >-
+      Required- Name of an existing EC2 KeyPair to enable SSH access to the
+      instances for Kong
+    Type: 'AWS::EC2::KeyPair::KeyName'
+    Default: ''
+  KongFleetMaxSize:
+    Description: Max Number of Kong instances
+    Type: Number
+    Default: '3'
+    MinValue: '1'
+  KongFleetDesiredSize:
+    Description: Desired Number of Kong instances
+    Type: Number
+    Default: '3'
+    MinValue: '1'
+  KongVersion:
+    Description: Kong version. Leave it blank to install latest version
+    Type: String
+    Default: 1.5.0.3
+  CollectorFleetMaxSize:
+    Description: Max Number of Kong Collector instances
+    Type: Number
+    Default: '2'
+    MinValue: '1'
+  CollectorFleetDesiredSize:
+    Description: Desired Number of Kong Collector instances
+    Type: Number
+    Default: '2'
+    MinValue: '1'
+  KongInstanceType:
+    Description: Kong EC2 instance type
+    Type: String
+    Default: c5n.large
+    AllowedValues:
+      - t3.micro
+      - t3.small
+      - t3.medium
+      - t3.large
+      - m5.large
+      - m5.xlarge
+      - m5.2xlarge
+      - m5.4xlarge
+      - m5.8xlarge
+      - c5.large
+      - c5.xlarge
+      - c5.2xlarge
+      - c5.4xlarge
+      - c5.9xlarge
+      - c5n.large
+      - c5n.xlarge
+      - c5n.2xlarge
+      - c5n.4xlarge
+      - c5n.9xlarge
+      - r5.large
+      - r5.xlarge
+      - r5.2xlarge
+      - r5.4xlarge
+      - r5.8xlarge
+      - r5n.large
+      - r5n.xlarge
+      - r5n.2xlarge
+      - r5n.4xlarge
+      - r5n.8xlarge
+    ConstraintDescription: must be a valid EC2 instance type
+  CollectorInstanceType:
+    Description: Kong Collector EC2 instance type
+    Type: String
+    Default: c5n.large
+    AllowedValues:
+      - t3.micro
+      - t3.small
+      - t3.medium
+      - t3.large
+      - m5.large
+      - m5.xlarge
+      - m5.2xlarge
+      - m5.4xlarge
+      - m5.8xlarge
+      - c5.large
+      - c5.xlarge
+      - c5.2xlarge
+      - c5.4xlarge
+      - c5.9xlarge
+      - c5n.large
+      - c5n.xlarge
+      - c5n.2xlarge
+      - c5n.4xlarge
+      - c5n.9xlarge
+      - r5.large
+      - r5.xlarge
+      - r5.2xlarge
+      - r5.4xlarge
+      - r5.8xlarge
+      - r5n.large
+      - r5n.xlarge
+      - r5n.2xlarge
+      - r5n.4xlarge
+      - r5n.8xlarge
+    ConstraintDescription: must be a valid EC2 instance type
+  KongBootstrapMigration:
+    Description: >-
+      Run the Kong bootstrap migrations by default, set it to false to disable
+      migrations
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+  KongTLSCertArn:
+    Description: Arn of ACM certificate to use on ALB
+    Type: String
+    Default: ''
+  SMTPHost:
+    Description: Host of the SMTP Server
+    Type: String
+    Default: ''
+  SMTPPort:
+    Description: Port of the SMTP Server
+    Type: Number
+    Default: '587'
+  SMTPStartTLS:
+    Description: Encrypt with STARTTLS (normally used with port 587)
+    Type: String
+    Default: 'on'
+    AllowedValues:
+      - 'on'
+      - 'off'
+  SMTPSSL:
+    Description: Encrypt with SSL (normally used with port 465)
+    Type: String
+    Default: 'off'
+    AllowedValues:
+      - 'on'
+      - 'off'
+  SMTPUsername:
+    Description: Username used for authentication with the SMTP server
+    Type: String
+    Default: ''
+  SMTPPassword:
+    Description: Password used for authentication with the SMTP server
+    Type: String
+    NoEcho: 'true'
+    Default: ''
+  SMTPAuthType:
+    Description: Authentication Type
+    Type: String
+    Default: plain
+    AllowedValues:
+      - plain
+      - login
+      - ''
+  SMTPDomain:
+    Description: The domain used in the EHLO connect and part of the Message-ID header
+    Type: String
+    Default: ''
+  SMTPAdminEmails:
+    Description: >-
+      Comma separated list of admin e-mail addresses: ex1@domain.com,
+      ex2@domain.com
+    Type: String
+    Default: ''
+  EmailsFrom:
+    Description: >-
+      The name and email address for the From header included in all 
+      emails: Example Name <ex1@domain.com>
+    Type: String
+    Default: Kong Admin <admin@domain.com>
+  EmailsReplyTo:
+    Description: >-
+      The email address for the Reply-To header included in all emails
+    Type: String
+    Default: No Reply <no-reply@domain.com>
+  KongMemCacheSize:
+    Description: >-
+      Size of each of the two in-memory caches for database entities. The accepted
+      units are k and m, with a minimum recommended value of a few MBs
+    Type: String
+    Default: 1024m
+  PgMaxConcurrentQueries:
+    Description: >-
+      Sets the maximum number of concurrent queries that can be executing at any given
+      time. This limit is enforced per worker process; the total number of concurrent
+      queries for this node will be will be: pg_max_concurrent_queries * nginx_worker_processes.
+      The default value of 0 removes this concurrency limitation.
+    Type: String
+    Default: 0
+  PgbouncerInstanceType:
+    Description: Pgbouncer EC2 instance type
+    Type: String
+    Default: c5n.large
+    AllowedValues:
+      - t3.micro
+      - t3.small
+      - t3.medium
+      - t3.large
+      - m5.large
+      - m5.xlarge
+      - m5.2xlarge
+      - m5.4xlarge
+      - m5.8xlarge
+      - c5.large
+      - c5.xlarge
+      - c5.2xlarge
+      - c5.4xlarge
+      - c5.9xlarge
+      - c5n.large
+      - c5n.xlarge
+      - c5n.2xlarge
+      - c5n.4xlarge
+      - c5n.9xlarge
+      - r5.large
+      - r5.xlarge
+      - r5.2xlarge
+      - r5.4xlarge
+      - r5.8xlarge
+      - r5n.large
+      - r5n.xlarge
+      - r5n.2xlarge
+      - r5n.4xlarge
+      - r5n.8xlarge
+    ConstraintDescription: must be a valid EC2 instance type
+  PgbouncerFleetMaxSize:
+    Description: Max Number of Pgbouncer instances
+    Type: Number
+    Default: '3'
+    MinValue: '1'
+  PgbouncerFleetDesiredSize:
+    Description: Desired Number of Pgbouncer instances
+    Type: Number
+    Default: '3'
+    MinValue: '1'
+  UpdateDNS:
+    Description: Update DNS Records
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+  KongLogLevel:
+    Description: Log Level for Kong Nodes
+    Type: String
+    Default: warn
+    AllowedValues:
+      - debug
+      - info
+      - notice
+      - warn
+      - error
+      - crit
+
+Conditions:
+  CreateDNSRecords: !Equals [ !Ref UpdateDNS, 'true' ]
+
+Resources:
+  VPCStack:
+    Type: 'AWS::CloudFormation::Stack'
+    Properties:
+      TemplateURL: 'https://<URI_to_S3_bucket>/templates/foundation-vpc.yaml'
+      Tags:
+        - Key: resources
+          Value: vpc
+
+  DNSStack:
+    DependsOn: VPCStack
+    Condition: CreateDNSRecords
+    Type: 'AWS::CloudFormation::Stack'
+    Properties:
+      TemplateURL: 'https://<URI_to_S3_bucket>/templates/update-route53-recordset.yaml'
+      Parameters:
+        HostedZoneName: !Join ['', [!Ref HostedZoneName, '.']]
+        Subdomain: !Ref Subdomain
+        LoadBalancerDNSName: !GetAtt VPCStack.Outputs.PublicLoadBalancer
+        LoadBalancerHostedZoneId: !GetAtt VPCStack.Outputs.PublicLoadBalancerHostedZone
+
+  DBVpcStack:
+    DependsOn: VPCStack
+    Type: 'AWS::CloudFormation::Stack'
+    Properties:
+      TemplateURL: 'https://<URI_to_S3_bucket>/templates/foundation-vpc-db.yaml'
+      Parameters:
+        PublicSubnet1: !GetAtt VPCStack.Outputs.PublicSubnet1
+        PublicSubnet2: !GetAtt VPCStack.Outputs.PublicSubnet2
+        PublicSubnet3: !GetAtt VPCStack.Outputs.PublicSubnet3
+        SecurityGroup: !GetAtt VPCStack.Outputs.SecurityGroup
+        VPCID: !GetAtt VPCStack.Outputs.VPCID
+      Tags:
+        - Key: resources
+          Value: vpc-db
+
+  KongDBStack:
+    DependsOn: DBVpcStack
+    Type: 'AWS::CloudFormation::Stack'
+    Properties:
+      TemplateURL: 'https://<URI_to_S3_bucket>/templates/foundation-db.yaml'
+      Parameters:
+        DBName: !Ref DBName
+        DBUsername: !Ref DBUsername
+        DBPassword: !Ref DBPassword
+        DBClass: !Ref DBClass
+        DBVersion: !Ref DBVersion
+        DBSnapshotIdentifier: !Ref DBSnapshotIdentifier
+        DBSecurityGroup: !GetAtt DBVpcStack.Outputs.DBSecurityGroup
+        DBSubnetGroup: !GetAtt DBVpcStack.Outputs.DBSubnetGroup
+        EnableEnhancedMonitoring: true
+      Tags:
+        - Key: resources
+          Value: kong-db
+
+  CollectorDBStack:
+    DependsOn: DBVpcStack
+    Type: 'AWS::CloudFormation::Stack'
+    Properties:
+      TemplateURL: 'https://<URI_to_S3_bucket>/templates/foundation-db.yaml'
+      Parameters:
+        DBName: !Ref CollectorDBName
+        DBUsername: !Ref CollectorDBUsername
+        DBPassword: !Ref CollectorDBPassword
+        DBClass: !Ref CollectorDBClass
+        DBVersion: !Ref DBVersion
+        DBSnapshotIdentifier: !Ref CollectorDBSnapshotIdentifier
+        DBSecurityGroup: !GetAtt DBVpcStack.Outputs.DBSecurityGroup
+        DBSubnetGroup: !GetAtt DBVpcStack.Outputs.DBSubnetGroup
+        EnableEnhancedMonitoring: true
+      Tags:
+        - Key: resources
+          Value: collector-db 
+
+  RedisStack:
+    DependsOn: DBVpcStack
+    Type: 'AWS::CloudFormation::Stack'
+    Properties:
+      TemplateURL: 'https://<URI_to_S3_bucket>/templates/foundation-redis-replication-cluster.yaml'
+      Parameters:
+        CacheClass: !Ref CacheClass
+        RedisPassword: !Ref RedisPassword
+        NumCacheClusters: !Ref NumCacheClusters
+        DBSecurityGroup: !GetAtt DBVpcStack.Outputs.DBSecurityGroup
+        PrivateSubnets: !Join [',', [!GetAtt VPCStack.Outputs.PrivateSubnet1, !GetAtt VPCStack.Outputs.PrivateSubnet2, !GetAtt VPCStack.Outputs.PrivateSubnet3]]
+      Tags:
+        - Key: resources
+          Value: redis
+
+  KongStack:
+    DependsOn:
+      - PGBouncerStack
+      - RedisStack
+    Type: 'AWS::CloudFormation::Stack'
+    Properties:
+      TemplateURL: 'https://<URI_to_S3_bucket>/templates/kong-enterprise.yaml'
+      Parameters:
+        VpcCidr: !GetAtt VPCStack.Outputs.Cidr
+        InternalLoadBalancer: !GetAtt VPCStack.Outputs.InternalLoadBalancer
+        PublicLoadBalancer: !GetAtt VPCStack.Outputs.PublicLoadBalancer
+        InternalLoadBalancerARN: !GetAtt VPCStack.Outputs.InternalLoadBalancerARN
+        PublicLoadBalancerARN: !GetAtt VPCStack.Outputs.PublicLoadBalancerARN
+        DBName: !Ref DBName
+        DBHost: !GetAtt VPCStack.Outputs.InternalLoadBalancer
+        DBPort: 6432
+        DBUsername: !Ref DBUsername
+        DBPassword: !Ref DBPassword
+        CollectorDBName: !Ref CollectorDBName
+        CollectorDBHost: !GetAtt VPCStack.Outputs.InternalLoadBalancer
+        CollectorDBPort: 6432
+        CollectorDBUsername: !Ref CollectorDBUsername
+        CollectorDBPassword: !Ref CollectorDBPassword
+        KongAdminPassword: !Ref KongAdminPassword
+        KongEnterpriseAccount: !Ref KongEnterpriseAccount
+        KongEnterprisePassword: !Ref KongEnterprisePassword
+        KongEnterpriseLicensePath: !Ref KongEnterpriseLicensePath
+        KongKeyName: !Ref KongKeyName
+        KongFleetMaxSize: !Ref KongFleetMaxSize
+        KongFleetDesiredSize: !Ref KongFleetDesiredSize
+        KongVersion: !Ref KongVersion
+        CollectorFleetMaxSize: !Ref CollectorFleetMaxSize
+        CollectorFleetDesiredSize: !Ref CollectorFleetDesiredSize
+        KongInstanceType: !Ref KongInstanceType
+        CollectorInstanceType: !Ref CollectorInstanceType
+        KongBootstrapMigration: !Ref KongBootstrapMigration
+        KongTLSCertArn: !Ref KongTLSCertArn
+        KongUrl: !Join ['.', [!Ref Subdomain, !Ref HostedZoneName]]
+        SMTPHost: !Ref SMTPHost
+        SMTPPort: !Ref SMTPPort
+        SMTPStartTLS: !Ref SMTPStartTLS
+        SMTPSSL: !Ref SMTPSSL
+        SMTPUsername: !Ref SMTPUsername
+        SMTPPassword: !Ref SMTPPassword
+        SMTPAuthType: !Ref SMTPAuthType
+        SMTPDomain: !Ref SMTPDomain
+        SMTPAdminEmails: !Ref SMTPAdminEmails
+        EmailsFrom: !Ref EmailsFrom
+        EmailsReplyTo: !Ref EmailsReplyTo
+        KongMemCacheSize: !Ref KongMemCacheSize
+        PgMaxConcurrentQueries: !Ref PgMaxConcurrentQueries
+        PrivateSubnets: !Join [',', [!GetAtt VPCStack.Outputs.PrivateSubnet1, !GetAtt VPCStack.Outputs.PrivateSubnet2, !GetAtt VPCStack.Outputs.PrivateSubnet3]]
+        PrivateSubnetAZs: !Join [',', [!GetAtt VPCStack.Outputs.PrivateSubnet1AZ, !GetAtt VPCStack.Outputs.PrivateSubnet2AZ, !GetAtt VPCStack.Outputs.PrivateSubnet3AZ]]
+        KongSecurityGroup: !GetAtt VPCStack.Outputs.SecurityGroup
+        LoadBalancerSecurityGroup: !GetAtt VPCStack.Outputs.LoadBalancerSecurityGroup
+        RedisEndpointAddress: !GetAtt RedisStack.Outputs.RedisHost
+        RedisEndpointPort: !GetAtt RedisStack.Outputs.RedisPort
+        RedisPassword: !Ref RedisPassword
+        VPCID: !GetAtt VPCStack.Outputs.VPCID
+        KongLogLevel: !Ref KongLogLevel
+      Tags:
+        - Key: resources
+          Value: kong
+
+  BastionStack:
+    DependsOn: VPCStack
+    Type: 'AWS::CloudFormation::Stack'
+    Properties:
+      TemplateURL: 'https://<URI_to_S3_bucket>/templates/linux-bastion.yaml'
+      Parameters:
+        PublicSubnet1ID: !GetAtt VPCStack.Outputs.PublicSubnet1
+        PublicSubnet2ID: !GetAtt VPCStack.Outputs.PublicSubnet2
+        VPCID: !GetAtt VPCStack.Outputs.VPCID
+        KeyPairName: !Ref KongKeyName
+        KongSecurityGroupId: !GetAtt VPCStack.Outputs.SecurityGroup
+      Tags:
+        - Key: resources
+          Value: bastion
+  
+  PGBouncerStack:
+    DependsOn:
+      - KongDBStack
+      - CollectorDBStack
+    Type: 'AWS::CloudFormation::Stack'
+    Properties:
+      TemplateURL: 'https://<URI_to_S3_bucket>/templates/pgbouncer.yaml'
+      Parameters:
+        VpcCidr: !GetAtt VPCStack.Outputs.Cidr
+        InternalLoadBalancerARN: !GetAtt VPCStack.Outputs.InternalLoadBalancerARN
+        PrivateSubnets: !Join [',', [!GetAtt VPCStack.Outputs.PrivateSubnet1, !GetAtt VPCStack.Outputs.PrivateSubnet2, !GetAtt VPCStack.Outputs.PrivateSubnet3]]
+        PrivateSubnetAZs: !Join [',', [!GetAtt VPCStack.Outputs.PrivateSubnet1AZ, !GetAtt VPCStack.Outputs.PrivateSubnet2AZ, !GetAtt VPCStack.Outputs.PrivateSubnet3AZ]]
+        SecurityGroup: !GetAtt VPCStack.Outputs.SecurityGroup
+        VPCID: !GetAtt VPCStack.Outputs.VPCID
+        DBName: !Ref DBName
+        DBHost: !GetAtt KongDBStack.Outputs.EndpointAddress
+        DBPort: !GetAtt KongDBStack.Outputs.EndpointPort 
+        DBUsername: !Ref DBUsername
+        DBPassword: !Ref DBPassword
+        CollectorDBName: !Ref CollectorDBName
+        CollectorDBHost: !GetAtt CollectorDBStack.Outputs.EndpointAddress
+        CollectorDBPort: !GetAtt CollectorDBStack.Outputs.EndpointPort
+        CollectorDBUsername: !Ref CollectorDBUsername
+        CollectorDBPassword: !Ref CollectorDBPassword
+        KeyName: !Ref KongKeyName
+        FleetMaxSize: !Ref PgbouncerFleetMaxSize
+        FleetDesiredSize: !Ref PgbouncerFleetDesiredSize
+        InstanceType: !Ref PgbouncerInstanceType
+      Tags:
+        - Key: resources
+          Value: pgbouncer

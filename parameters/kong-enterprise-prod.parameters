@@ -1,0 +1,138 @@
+[
+  {
+    "ParameterKey": "HostedZoneName",
+    "ParameterValue": ""
+  },
+  {
+    "ParameterKey": "Subdomain",
+    "ParameterValue": ""
+  },
+  {
+    "ParameterKey": "KongVersion",
+    "ParameterValue": "1.5.0.4"
+  },
+  {
+    "ParameterKey": "KongAdminPassword",
+    "ParameterValue": ""
+  },
+  {
+    "ParameterKey": "KongTLSCertArn",
+    "ParameterValue": ""
+  },
+  {
+    "ParameterKey": "DBPassword",
+    "ParameterValue": ""
+  },
+  {
+    "ParameterKey": "CollectorDBPassword",
+    "ParameterValue": ""
+  },
+  {
+    "ParameterKey": "KongKeyName",
+    "ParameterValue": ""
+  },
+  {
+    "ParameterKey": "KongInstanceType",
+    "ParameterValue": "c5n.large"
+  },
+  {
+    "ParameterKey": "KongFleetDesiredSize",
+    "ParameterValue": "1"
+  },
+  {
+    "ParameterKey": "KongFleetMaxSize",
+    "ParameterValue": "1"
+  },
+  {
+    "ParameterKey": "CollectorFleetDesiredSize",
+    "ParameterValue": "1"
+  },  
+  {
+    "ParameterKey": "CollectorFleetMaxSize",
+    "ParameterValue": "1"
+  },
+  {
+    "ParameterKey": "DBClass",
+    "ParameterValue": "db.r5.large"
+  },
+  {
+    "ParameterKey": "CollectorInstanceType",
+    "ParameterValue": "c5n.large"
+  },
+  {
+    "ParameterKey": "CollectorDBClass",
+    "ParameterValue": "db.r5.large"
+  },
+  {
+    "ParameterKey": "SMTPHost",
+    "ParameterValue": ""
+  },
+  {
+    "ParameterKey": "SMTPUsername",
+    "ParameterValue": ""
+  },
+  {
+    "ParameterKey": "SMTPPassword",
+    "ParameterValue": ""
+  },
+  {
+    "ParameterKey": "SMTPDomain",
+    "ParameterValue": ""
+  },
+  {
+    "ParameterKey": "SMTPAdminEmails",
+    "ParameterValue": "<email1>,<email2>,<email3>"
+  },
+  {
+    "ParameterKey": "EmailsFrom",
+    "ParameterValue": ""
+  },
+  {
+    "ParameterKey": "EmailsReplyTo",
+    "ParameterValue": ""
+  },
+  {
+    "ParameterKey": "CacheClass",
+    "ParameterValue": "cache.r5.large"
+  },
+  {
+    "ParameterKey": "KongMemCacheSize",
+    "ParameterValue": "1024m"
+  },
+  {
+    "ParameterKey": "PgMaxConcurrentQueries",
+    "ParameterValue": "0"
+  },
+  {
+    "ParameterKey": "PgbouncerInstanceType",
+    "ParameterValue": "c5n.large"
+  },
+  {
+    "ParameterKey": "PgbouncerFleetMaxSize",
+    "ParameterValue": "1"
+  },
+  {
+    "ParameterKey": "PgbouncerFleetDesiredSize",
+    "ParameterValue": "1"
+  },
+  {
+    "ParameterKey": "RedisPassword",
+    "ParameterValue": ""
+  },
+  {
+    "ParameterKey": "KongEnterpriseAccount",
+    "ParameterValue": ""
+  },
+  {
+    "ParameterKey": "KongEnterprisePassword",
+    "ParameterValue": ""
+  },
+  {
+    "ParameterKey": "KongEnterpriseLicensePath",
+    "ParameterValue": ""
+  },
+  {
+    "ParameterKey": "NumCacheClusters",
+    "ParameterValue": "2"
+  }
+]

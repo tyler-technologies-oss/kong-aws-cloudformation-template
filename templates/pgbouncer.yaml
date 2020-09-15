@@ -1,0 +1,339 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Tyler Technologies PGBouncer Template
+Parameters:
+  VpcCidr:
+    Description: CIDR Block of the VPC
+    Type: String
+  InternalLoadBalancerARN:
+    Type: String
+  PrivateSubnets:
+    Type: CommaDelimitedList
+  PrivateSubnetAZs:
+    Type: CommaDelimitedList
+  SecurityGroup:
+    Description: The security group in which the nodes reside
+    Type: AWS::EC2::SecurityGroup::Id
+  VPCID:
+    Description: 'ID of the VPC (e.g., vpc-0343606e).'
+    Type: 'AWS::EC2::VPC::Id'
+  DBName:
+    Default: kong
+    Description: The database name
+    Type: String
+    MinLength: '1'
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+    ConstraintDescription: must begin with a letter and contain only alphanumeric characters
+  DBHost:
+    Description: 'The database host dns, leave blank to start a new RDS instance'
+    Type: String
+    Default: ''
+  DBPort:
+    Default: '5432'
+    Description: The database port
+    Type: String
+    AllowedPattern: '[0-9]+'
+    ConstraintDescription: must be a valid port number
+  DBUsername:
+    Default: kong
+    Description: The database admin account username
+    Type: String
+    MinLength: '1'
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+    ConstraintDescription: must begin with a letter and contain only alphanumeric characters
+  DBPassword:
+    Default: changeme
+    NoEcho: 'true'
+    Description: The database admin account password
+    Type: String
+    MinLength: '8'
+  CollectorDBName:
+    Default: collector
+    Description: The database name
+    Type: String
+    MinLength: '1'
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+    ConstraintDescription: must begin with a letter and contain only alphanumeric characters
+  CollectorDBHost:
+    Description: 'Optional- The database host dns, leave blank to start a new RDS instance'
+    Type: String
+    Default: ''
+  CollectorDBPort:
+    Default: '5432'
+    Description: Conditional- required if DBHost provided. The database port
+    Type: String
+    AllowedPattern: '[0-9]+'
+    ConstraintDescription: must be a valid port number
+  CollectorDBUsername:
+    Default: collector
+    Description: The database admin account username
+    Type: String
+    MinLength: '1'
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+    ConstraintDescription: must begin with a letter and contain only alphanumeric characters
+  CollectorDBPassword:
+    Default: changeme
+    NoEcho: 'true'
+    Description: The database admin account password
+    Type: String
+    MinLength: '8'
+  KeyName:
+    Description: >-
+      Required- Name of an existing EC2 KeyPair to enable SSH access to the
+      instances
+    Type: 'AWS::EC2::KeyPair::KeyName'
+    Default: ''
+  FleetMaxSize:
+    Description: Max Number of pgbouncer instances
+    Type: Number
+    Default: '3'
+    MinValue: '1'
+  FleetDesiredSize:
+    Description: Desired Number of pgbouncer instances
+    Type: Number
+    Default: '3'
+    MinValue: '1'
+  InstanceType:
+    Description: PGBouncer EC2 instance type
+    Type: String
+    Default: c5.2xlarge
+    AllowedValues:
+      - t3.micro
+      - t3.small
+      - t3.medium
+      - t3.large
+      - m5.large
+      - m5.xlarge
+      - m5.2xlarge
+      - m5.4xlarge
+      - m5.8xlarge
+      - c5.large
+      - c5.xlarge
+      - c5.2xlarge
+      - c5.4xlarge
+      - c5.9xlarge
+      - c5n.large
+      - c5n.xlarge
+      - c5n.2xlarge
+      - c5n.4xlarge
+      - c5n.9xlarge
+      - r5.large
+      - r5.xlarge
+      - r5.2xlarge
+      - r5.4xlarge
+      - r5.8xlarge
+      - r5n.large
+      - r5n.xlarge
+      - r5n.2xlarge
+      - r5n.4xlarge
+      - r5n.8xlarge
+    ConstraintDescription: must be a valid EC2 instance type
+Mappings:
+  RegionAmiMap:
+    us-east-1:
+      HVM: ami-0b69ea66ff7391e80
+    us-east-2:
+      HVM: ami-00c03f7f7f2ec15c3
+    us-west-1:
+      HVM: ami-0245d318c6788de52
+    us-west-2:
+      HVM: ami-04b762b4289fba92b
+    eu-west-1:
+      HVM: ami-0ce71448843cb18a1
+    eu-west-2:
+      HVM: ami-00a1270ce1e007c27
+    eu-central-1:
+      HVM: ami-00aa4671cbf840d82
+    ap-southeast-1:
+      HVM: ami-048a01c78f7bae4aa
+    ap-southeast-2:
+      HVM: ami-03ed5bd63ba378bd8
+    sa-east-1:
+      HVM: ami-0a1f49a762473adbd
+Resources:
+  ASGUpdateRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      Path: /
+      Policies:
+        - PolicyName: ASGUpdateRole
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Action:
+                  - 'ec2:Describe*'
+                  - 'cloudformation:DescribeStackResource'
+                  - 'cloudformation:DescribeStacks'
+                Resource:
+                  - '*'
+                Effect: Allow
+              - Effect: Allow
+                Action: 'autoscaling:UpdateAutoScalingGroup'
+                Resource:
+                  - '*'
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action:
+              - 'sts:AssumeRole'
+            Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+
+  ASGUpdateProfile:
+    Type: 'AWS::IAM::InstanceProfile'
+    Properties:
+      Path: /
+      Roles:
+        - !Ref ASGUpdateRole
+
+  ScalingGroup:
+    Type: 'AWS::AutoScaling::AutoScalingGroup'
+    CreationPolicy:
+      ResourceSignal:
+        Count: !Ref FleetDesiredSize
+        Timeout: PT15M
+
+    Properties:
+      AvailabilityZones: !Ref PrivateSubnetAZs
+      VPCZoneIdentifier: !Ref PrivateSubnets
+      LaunchConfigurationName: !Ref LaunchConfig
+      MinSize: '1'
+      MaxSize: '1'
+      DesiredCapacity: '1'
+      TargetGroupARNs:
+        - !Ref InternalTargetGroup
+      Tags:
+        - Key: Name
+          Value: !Join ['-', [!Ref 'AWS::StackName', PGBouncer]]
+          PropagateAtLaunch: 'true'
+
+  LaunchConfig:
+    Type: 'AWS::AutoScaling::LaunchConfiguration'
+    Properties:
+      AssociatePublicIpAddress: false
+      ImageId: !FindInMap
+        - RegionAmiMap
+        - !Ref 'AWS::Region'
+        - HVM
+      InstanceType: !Ref InstanceType
+      BlockDeviceMappings: 
+        - DeviceName: /dev/xvda
+          Ebs: 
+            VolumeSize: 50
+      InstanceMonitoring: true
+      KeyName: !Ref KeyName
+      SecurityGroups:
+        - !Ref SecurityGroup
+      IamInstanceProfile: !Ref ASGUpdateProfile
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          yum update -y aws-cfn-bootstrap
+          echo '* soft nofile 65000' >> /etc/security/limits.conf
+          echo '* hard nofile 65000' >> /etc/security/limits.conf
+          yum update -y
+          yum install -y epel-release
+          amazon-linux-extras install -y epel
+
+          export KONGHOST='${DBHost}'
+          export KONGPORT='${DBPort}'
+          export KONGUSER='${DBUsername}'
+          export KONGPASSWORD='${DBPassword}'
+          export KONGDBNAME='${DBName}'
+          export COLLECTORHOST='${CollectorDBHost}'
+          export COLLECTORPORT='${CollectorDBPort}'
+          export COLLECTORUSER='${CollectorDBUsername}'
+          export COLLECTORPASSWORD='${CollectorDBPassword}'
+          export COLLECTORDBNAME='${CollectorDBName}'
+          echo "[pgbouncer] installing PGBouncer with following environments:"
+          env
+          yum install -y git glibc-devel gcc patch libevent-devel openssl-devel c-ares-devel libtool pandoc
+          git clone https://github.com/pgbouncer/pgbouncer.git
+          if [ "$?" -ne "0" ]; then
+            /opt/aws/bin/cfn-signal -e 1 --stack ${AWS::StackName} --resource ScalingGroup --region ${AWS::Region}
+            echo "[pgbouncer] failed to clone pgbouncer, exiting..."
+            exit
+          fi
+          cd pgbouncer
+          git submodule init
+          git submodule update
+          ./autogen.sh
+          if [ "$?" -ne "0" ]; then
+            /opt/aws/bin/cfn-signal -e 1 --stack ${AWS::StackName} --resource ScalingGroup --region ${AWS::Region}
+            echo "[pgbouncer] failed to run autogen.sh for pgbouncer, exiting..."
+            exit
+          fi
+          ./configure
+          if [ "$?" -ne "0" ]; then
+            /opt/aws/bin/cfn-signal -e 1 --stack ${AWS::StackName} --resource ScalingGroup --region ${AWS::Region}
+            echo "[pgbouncer] failed to configure pgbouncer, exiting..."
+            exit
+          fi
+          make
+          if [ "$?" -ne "0" ]; then
+            /opt/aws/bin/cfn-signal -e 1 --stack ${AWS::StackName} --resource ScalingGroup --region ${AWS::Region}
+            echo "[pgbouncer] failed to make pgbouncer, exiting..."
+            exit
+          fi
+          make install
+          if [ "$?" -ne "0" ]; then
+            /opt/aws/bin/cfn-signal -e 1 --stack ${AWS::StackName} --resource ScalingGroup --region ${AWS::Region}
+            echo "[pgbouncer] failed to install pgbouncer, exiting..."
+            exit
+          fi
+          ln -s /usr/local/bin/pgbouncer /usr/bin/pgbouncer
+          mkdir -p /etc/pgbouncer
+          mkdir -p /var/log/pgbouncer
+          mkdir -p /var/run/pgbouncer
+          touch /etc/pgbouncer/userlist.txt
+          echo "\"${DBUsername}\" \"${DBPassword}\"" >| /etc/pgbouncer/userlist.txt
+          echo "\"${CollectorDBUsername}\" \"${CollectorDBPassword}\"" >> /etc/pgbouncer/userlist.txt
+          curl https://<URI_to_S3_bucket>/configs/pgbouncer/pgbouncer.ini -o /etc/pgbouncer/pgbouncer.ini
+          sed -i -e 's/MYKONGHOST/'$KONGHOST'/g; s/MYKONGPORT/'$KONGPORT'/g; s/MYKONGUSER/'$KONGUSER'/g; s/MYKONGPASSWORD/'$KONGPASSWORD'/g; s/MYKONGDBNAME/'$KONGDBNAME'/g' /etc/pgbouncer/pgbouncer.ini
+          sed -i -e 's/MYCOLLECTORHOST/'$COLLECTORHOST'/g; s/MYCOLLECTORPORT/'$COLLECTORPORT'/g; s/MYCOLLECTORUSER/'$COLLECTORUSER'/g; s/MYCOLLECTORPASSWORD/'$COLLECTORPASSWORD'/g; s/MYCOLLECTORDBNAME/'$COLLECTORDBNAME'/g' /etc/pgbouncer/pgbouncer.ini
+          curl https://<URI_to_S3_bucket>/configs/pgbouncer/pgbouncer.service -o /etc/systemd/system/pgbouncer.service
+          chown ec2-user:ec2-user -R /var/log/pgbouncer
+          chown ec2-user:ec2-user -R /var/run/pgbouncer
+          chown ec2-user:ec2-user -R /etc/pgbouncer
+          systemctl daemon-reload
+          systemctl enable pgbouncer
+          echo 'starting pgbouncer'
+          systemctl start pgbouncer
+          if [ "$?" -ne "0" ]; then
+            /opt/aws/bin/cfn-signal -e 1 --stack ${AWS::StackName} --resource ScalingGroup --region ${AWS::Region}
+            echo "[pgbouncer] failed to start pgbouncer, exiting..."
+            exit
+          fi
+          instance_id=`curl http://169.254.169.254/latest/meta-data/instance-id`
+          STACK_STATUS=$(aws cloudformation describe-stacks --stack-name ${AWS::StackName} --query "Stacks[*].StackStatus" --region ${AWS::Region} --output text)
+          if [ "$STACK_STATUS" == "CREATE_IN_PROGRESS" ]; then
+            autoscale_group=`aws ec2 describe-tags --filters "Name=resource-id,Values=$instance_id" --region ${AWS::Region} "Name=key,Values=aws:autoscaling:groupName" | sed -ne 's/[ ]*"Value":\s"\(.*\)",/\1/p'`
+            aws autoscaling update-auto-scaling-group --auto-scaling-group-name $autoscale_group --region ${AWS::Region} --max-size ${FleetMaxSize} --desired-capacity ${FleetDesiredSize}
+          fi
+          /opt/aws/bin/cfn-signal -e 0 --stack ${AWS::StackName} --resource ScalingGroup --region ${AWS::Region}
+
+  InternalLoadBalancerListenerApi:
+    Type: 'AWS::ElasticLoadBalancingV2::Listener'
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref InternalTargetGroup
+      LoadBalancerArn: !Ref InternalLoadBalancerARN
+      Port: 6432
+      Protocol: TCP
+
+  InternalTargetGroup:
+    Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
+    Properties:
+      Port: 6432
+      Protocol: TCP
+      VpcId: !Ref VPCID
+
+  IngressPgBouncer:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      GroupId: !Ref SecurityGroup
+      IpProtocol: tcp
+      FromPort: '6432'
+      ToPort: '6432'
+      CidrIp: !Ref VpcCidr

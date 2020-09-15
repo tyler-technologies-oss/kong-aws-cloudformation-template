@@ -1,0 +1,152 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Tyler Technologies Foundation Aurora Database Cluster Template
+Parameters:
+  DBName:
+    Default: postgres
+    Description: The database name
+    Type: String
+    MinLength: '1'
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+    ConstraintDescription: must begin with a letter and contain only alphanumeric characters
+  DBUsername:
+    Default: dbuser
+    Description: The database admin account username
+    Type: String
+    MinLength: '1'
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+    ConstraintDescription: must begin with a letter and contain only alphanumeric characters
+  DBPassword:
+    Default: changeme
+    NoEcho: 'true'
+    Description: The database admin account password
+    Type: String
+    MinLength: '8'
+  DBClass:
+    Default: db.r5.large
+    Description: Database instance class
+    Type: String
+    AllowedValues:
+      - db.t3.small
+      - db.t3.medium
+      - db.r5.large
+      - db.r5.xlarge
+      - db.r5.2xlarge
+      - db.r5.4xlarge
+      - db.r5.12xlarge
+      - db.r5.24xlarge
+    ConstraintDescription: must select a valid database instance type
+  DBVersion:
+    Description: Postgres version
+    Type: String
+    Default: 9.6.16
+    AllowedValues:
+      - 9.6.16
+      - '10.11'
+  DBSnapshotIdentifier:
+    Description: Optional- The RDS snapshot name to restore to the new DB instance
+    Type: String
+    Default: ''
+  DBSecurityGroup:
+    Type: String
+  DBSubnetGroup:
+    Type: String
+  EnableEnhancedMonitoring:
+    Description: 'Provide metrics in real time for the operating system (OS) that your DB instance runs on.'
+    Type: String
+    AllowedValues: [true, false]
+    Default: false
+
+Mappings:
+  DBFamilyMap:
+    9.6.16:
+      Family: default.aurora-postgresql9.6
+    '10.11':
+      Family: default.aurora-postgresql10
+
+Conditions:
+  UseDbSnapshot: !Not [!Equals [!Ref DBSnapshotIdentifier, ""]]
+  HasEnhancedMonitoring: !Equals [ !Ref EnableEnhancedMonitoring, 'true' ]
+
+Resources:
+  EnhancedMonitoringRole:
+    Condition: HasEnhancedMonitoring
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Sid: ''
+          Effect: Allow
+          Principal:
+            Service: monitoring.rds.amazonaws.com
+          Action: sts:AssumeRole
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole
+      Path: "/"
+
+  PostgresDB:
+    Type: 'AWS::RDS::DBCluster'
+    Properties:
+      Engine: aurora-postgresql
+      EngineVersion: !Ref DBVersion
+      DatabaseName: !Ref DBName
+      Port: 5432
+      MasterUsername: !Ref DBUsername
+      MasterUserPassword: !Ref DBPassword
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VpcSecurityGroupIds:
+        - !Ref DBSecurityGroup
+      DBClusterParameterGroupName: !FindInMap
+        - DBFamilyMap
+        - !Ref DBVersion
+        - Family
+      SnapshotIdentifier: !If
+        - UseDbSnapshot
+        - !Ref DBSnapshotIdentifier
+        - !Ref 'AWS::NoValue'
+      StorageEncrypted: 'true'
+      DeletionProtection: 'true'
+
+  PostgresInstance1:
+    Type: 'AWS::RDS::DBInstance'
+    Properties:
+      DBInstanceClass: !Ref DBClass
+      DBClusterIdentifier: !Ref PostgresDB
+      Engine: aurora-postgresql
+      EngineVersion: !Ref DBVersion
+      PubliclyAccessible: 'false'
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      DBParameterGroupName: !FindInMap
+        - DBFamilyMap
+        - !Ref DBVersion
+        - Family
+      MonitoringInterval: !If [HasEnhancedMonitoring, 60, 0]
+      MonitoringRoleArn: !If [HasEnhancedMonitoring, !GetAtt ['EnhancedMonitoringRole', 'Arn'], !Ref 'AWS::NoValue']
+      EnablePerformanceInsights: !If [HasEnhancedMonitoring, true, false]
+      PerformanceInsightsRetentionPeriod: !If [HasEnhancedMonitoring, 7, !Ref 'AWS::NoValue']
+
+  PostgresInstance2:
+    Type: 'AWS::RDS::DBInstance'
+    Properties:
+      DBInstanceClass: !Ref DBClass
+      DBClusterIdentifier: !Ref PostgresDB
+      Engine: aurora-postgresql
+      EngineVersion: !Ref DBVersion
+      PubliclyAccessible: 'false'
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      DBParameterGroupName: !FindInMap
+        - DBFamilyMap
+        - !Ref DBVersion
+        - Family
+      MonitoringInterval: !If [HasEnhancedMonitoring, 60, 0]
+      MonitoringRoleArn: !If [HasEnhancedMonitoring, !GetAtt ['EnhancedMonitoringRole', 'Arn'], !Ref 'AWS::NoValue']
+      EnablePerformanceInsights: !If [HasEnhancedMonitoring, true, false]
+      PerformanceInsightsRetentionPeriod: !If [HasEnhancedMonitoring, 7, !Ref 'AWS::NoValue']
+
+Outputs:
+  EndpointAddress:
+    Description: Database Endpoint Address
+    Value: !GetAtt PostgresDB.Endpoint.Address
+  EndpointPort:
+    Description: Database Endpoint Port
+    Value: !GetAtt PostgresDB.Endpoint.Port
