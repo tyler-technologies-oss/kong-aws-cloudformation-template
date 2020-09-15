@@ -16,13 +16,17 @@ This template deploys the following infrastructure to AWS:
 4. A NAT Gateway that will ensure all traffic coming from Kong will have the same, static IP address
 5. An internal network load balancer that will facilitate communication among Kong, Brain/Immunity, and PGBouncer auto scaling groups
 6. An autoscaling group comprised of a Kong cluster. We recommend network-optimized EC2 instance types (c5n or r5n).
-7. An autoscaling group comprised of EC2 nodes running Brain and Immunity in Docker. We recommend network-optimized EC2 instance types.
+7. An autoscaling group comprised of EC2 nodes running Brain and Immunity in Docker. We recommend network-optimized EC2 instance types (c5n or r5n).
 8. An autoscaling group comprised of a PGBouncer cluster. We recommend network-optimized EC2 instance types (c5n or r5n).
 9. Two Aurora Postgres instances with read replicas. One is used by Kong, and the other is used by Brain/Immunity.
 10. An Elasticache Redis instance with failover used by both Kong and Brain/Immunity
 11. A linux bastion used to access Kong, Brain/Immunity, and PGBouncer nodes in private subnets. You may choose to deploy between 1 and 4 bastion EC2 instance(s).
 
 This template also configures log rotation, as logs coming from Kong can, over time, fill up the volume space available to Kong nodes. You may configure logrotate options in the [kong](./configs/logrotate/kong) file in the /config/logrotate directory.
+
+The following diagram details the order in which templates that are a child of the full-stack template are deployed:
+
+![Flow Describing Template Deployment Order](cloud-formation-flow.png)
 
 ## Prerequisites
 
