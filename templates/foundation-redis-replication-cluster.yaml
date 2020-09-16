@@ -1,0 +1,70 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Tyler Technologies Foundation Redis Replication Cluster
+Parameters:
+  CacheClass:
+    Default: cache.t3.micro
+    Description: Database instance class
+    Type: String
+    AllowedValues:
+      - cache.t3.micro
+      - cache.t3.small
+      - cache.t3.medium
+      - cache.m5.large
+      - cache.m5.xlarge
+      - cache.m5.2xlarge
+      - cache.m5.4xlarge
+      - cache.m5.12xlarge
+      - cache.r5.large
+      - cache.r5.xlarge
+      - cache.r5.2xlarge
+      - cache.r5.4xlarge
+      - cache.r5.12xlarge
+    ConstraintDescription: must select a valid database instance type
+  RedisPassword:
+    Description: Password to reach redis cache cluster
+    NoEcho: 'true'
+    Type: String
+    Default: changeme
+  NumCacheClusters:
+    Description: Number of Redis Cache Clusters
+    Type: Number
+    Default: 2
+    MinValue: 2
+    MaxValue: 6
+  PrivateSubnets:
+    Type: CommaDelimitedList
+  DBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: The security group for the Redis Cache
+
+Resources:
+  RedisSubnetGroup:
+    Type: 'AWS::ElastiCache::SubnetGroup'
+    Properties:
+      Description: RedisSubnetGroup
+      SubnetIds: !Ref PrivateSubnets
+
+  RedisControllerReplication:
+    Type: 'AWS::ElastiCache::ReplicationGroup'
+    Properties: 
+      ReplicationGroupDescription: !Join ['-', [!Ref 'AWS::StackName', Redis]]
+      AutomaticFailoverEnabled: true
+      AtRestEncryptionEnabled: true
+      CacheNodeType: !Ref CacheClass
+      NumCacheClusters: !Ref NumCacheClusters
+      TransitEncryptionEnabled: false
+      CacheSubnetGroupName: !Ref RedisSubnetGroup
+      Engine: redis
+      SecurityGroupIds:
+        - !Ref DBSecurityGroup
+
+Outputs:
+  RedisURL:
+    Description: Redis connection string
+    Value: !Join ['', ['redis://', !GetAtt RedisControllerReplication.PrimaryEndPoint.Address, ':', !GetAtt RedisControllerReplication.PrimaryEndPoint.Port]]
+  RedisHost:
+    Description: Redis endpoint address
+    Value: !GetAtt RedisControllerReplication.PrimaryEndPoint.Address
+  RedisPort:
+    Description: Redis endpoint port
+    Value: !GetAtt RedisControllerReplication.PrimaryEndPoint.Port

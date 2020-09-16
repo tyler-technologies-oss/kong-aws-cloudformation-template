@@ -1,0 +1,58 @@
+version: '3'
+
+# requirement: kong_host&port, celery_broker_url, sqlalchemy_database_uri
+# ignore the warning as later the value is overriden
+services:
+  auto-train:
+    image: kong-docker-kong-brain-immunity-base.bintray.io/kong-brain-immunity:2.0.3
+    command: bash -c "python auto-train.py"
+    depends_on:
+      - collector
+
+  collector:
+    image: kong-docker-kong-brain-immunity-base.bintray.io/kong-brain-immunity:2.0.3
+    command: bash -c "flask db upgrade && /collector/run-collector.sh"
+    environment:
+      - KONG_PROTOCOL=${KONG_PROTOCOL:-http}
+      - KONG_HOST=${KONG_HOST:-kong}
+      - KONG_PORT=${KONG_PORT:-8001}
+      - CELERY_BROKER_URL=${REDIS_URI}
+      - SQLALCHEMY_DATABASE_URI=${SQLALCHEMY_DATABASE_URI}
+      - KONG_ADMIN_TOKEN=${KONG_ADMIN_TOKEN:-handyshake}
+    ports:
+      - '5000:5000'
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "200k"
+        max-file: "10"
+
+  celery-beat:
+    image: kong-docker-kong-brain-immunity-base.bintray.io/kong-brain-immunity:2.0.3
+    command: celery beat -l info -A collector.scheduler.celery
+    environment:
+      - CELERY_BROKER_URL=${REDIS_URI}
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "200k"
+        max-file: "10"
+
+  celery-worker:
+    image: kong-docker-kong-brain-immunity-base.bintray.io/kong-brain-immunity:2.0.3
+    command: celery worker -l info -A collector.scheduler.celery
+    environment:
+      - CELERY_BROKER_URL=${REDIS_URI}
+      - SQLALCHEMY_DATABASE_URI=${SQLALCHEMY_DATABASE_URI}
+      - KONG_PROTOCOL=${KONG_PROTOCOL:-http}
+      - KONG_HOST=${KONG_HOST}
+      - KONG_PORT=${KONG_PORT}
+      - KONG_ADMIN_TOKEN=${KONG_ADMIN_TOKEN}
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "200k"
+        max-file: "10"

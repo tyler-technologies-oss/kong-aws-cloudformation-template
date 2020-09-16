@@ -1,0 +1,42 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Tyler Technologies Foundation Route 53 Update
+Parameters:
+  HostedZoneName:
+    Type: String
+    Description: Hosted Zone to add A records to
+    Default: api.mycompany.com.
+  Subdomain:
+    Type: String
+    Description: Subdomain for the A record to create (i.e. dev)
+    Default: dev
+  LoadBalancerDNSName:
+    Type: String
+    Description: External load balancer DNS name
+    Default: changeme
+  LoadBalancerHostedZoneId:
+    Type: String
+    Description: External load balancer Canonical Hosted Zone Id 
+    Default: changeme
+
+Resources:
+  ApiDNSRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneName: !Ref HostedZoneName
+      Name: !Join ['.', [!Ref Subdomain, !Ref HostedZoneName]]
+      Type: A
+      AliasTarget:
+        DNSName: !Ref LoadBalancerDNSName
+        EvaluateTargetHealth: False
+        HostedZoneId: !Ref LoadBalancerHostedZoneId
+  
+  StarDNSRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneName: !Ref HostedZoneName
+      Name: !Join ['.', ['*', !Ref Subdomain, !Ref HostedZoneName]]
+      Type: A
+      AliasTarget:
+        DNSName: !Ref LoadBalancerDNSName
+        EvaluateTargetHealth: False
+        HostedZoneId: !Ref LoadBalancerHostedZoneId
