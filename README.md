@@ -15,9 +15,9 @@ This template deploys the following infrastructure to AWS:
 3. An ALB V2 load balancer
 4. A NAT Gateway that will ensure all traffic coming from Kong will have the same, static IP address
 5. An internal network load balancer that will facilitate communication among Kong, Brain/Immunity, and PGBouncer auto scaling groups
-6. An autoscaling group comprised of a Kong cluster. We recommend network-optimized EC2 instance types (c5n or r5n).
-7. An autoscaling group comprised of EC2 nodes running Brain and Immunity in Docker. We recommend network-optimized EC2 instance types (c5n or r5n).
-8. An autoscaling group comprised of a PGBouncer cluster. We recommend network-optimized EC2 instance types (c5n or r5n).
+6. An autoscaling group comprised of a Kong cluster. We recommend network-optimized EC2 instance types (c5n or r5n), especially for production deployments.
+7. An autoscaling group comprised of EC2 nodes running Brain and Immunity in Docker. We recommend network-optimized EC2 instance types (c5n or r5n), especially for production deployments.
+8. An autoscaling group comprised of a PGBouncer cluster. We recommend network-optimized EC2 instance types (c5n or r5n), especially for production deployments.
 9. Two Aurora Postgres instances with read replicas. One is used by Kong, and the other is used by Brain/Immunity.
 10. An Elasticache Redis instance with failover used by both Kong and Brain/Immunity
 11. A linux bastion used to access Kong, Brain/Immunity, and PGBouncer nodes in private subnets. You may choose to deploy between 1 and 4 bastion EC2 instance(s).
