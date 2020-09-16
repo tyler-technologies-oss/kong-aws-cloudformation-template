@@ -98,3 +98,46 @@ aws cloudformation create-stack \
 --capabilities CAPABILITY_IAM \
 --stack-name <stack_name>
 ```
+
+We also like to add the `--disable-rollback` option to this call, because you know how it goes in CloudFormation ... it never works the first time.  And if the deployment does not roll back, you have the option to take a closer look to see what went wrong.
+
+## Logging into Kong
+
+Once your template completes successfully, simply visit the `Outputs` tab of the `KongStack` child stack in CloudFormation. That tab will contain an output called `AdminGuiURL`. Simply click that URL, supply `kong_admin` as the user, and supply the `KongAdminPassword` from your parameters as the password to the website.
+
+## Debugging your Kong instance
+
+To determine if there was a problem with the auto scaling group initialization script, run the following command once you have an ssh session connected to one of the Kong nodes.
+
+```bash
+cat /var/log/cloud-init-output.log
+```
+
+Additional logs may be found in `/usr/local/kong/logs`.
+
+To view all the environment variables Kong is using, run the following:
+
+```bash
+sudo cat /usr/local/kong/.kong_env
+```
+
+We also write out a file that can be used to source all environment variables we set when a node is constructed by the auto scaling group initialization script. It is located at root, so you must sudo to see it.
+
+```bash
+sudo su -
+cd /root
+cat kong-env
+```
+
+## Restarting Kong manually on a node
+
+If you make changes to configuration or other changes to Kong, you might have to restart it. To manually restart Kong on a given node, run the following:
+
+```bash
+sudo su -
+cd /root
+source kong-env
+/usr/local/bin/kong restart
+```
+
+IT IS VERY IMPORTANT THAT YOU SOURCE THE kong-env FILE. IF YOU DO NOT, KONG WILL NOT HAVE ALL THE VALUES IT NEEDS TO START SUCCESSFULLY.
