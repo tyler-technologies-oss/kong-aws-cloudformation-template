@@ -1,6 +1,6 @@
 # kong-aws-cloudformation-template
 
-This repository contains AWS CloudFormation templates that will create the infrastructure required to stand up a Kong cluster of EC2 nodes with Brain/Immunity enabled.
+This repository contains AWS CloudFormation templates that will create the infrastructure required to stand up a Kong cluster of EC2 nodes with Brain/Immunity enabled. This deployment creates a standalone API gateway and cannot be used to implement Kong as an ingress controller to a Kubernetes cluster.
 
 ## What this template deploys
 
