@@ -24,24 +24,23 @@ This template deploys the following infrastructure to AWS:
 
 This template also configures log rotation, as logs coming from Kong can, over time, fill up the volume space available to Kong nodes. You may configure logrotate options in the [kong](./configs/logrotate/kong) file in the /config/logrotate directory.
 
-The following diagram details the order in which templates that are a child of the full-stack template are deployed:
+The following diagram details the order in which templates that are children of the full-stack template are deployed:
 
 ![Flow Describing Template Deployment Order](cloud-formation-flow.png)
 
 ## Prerequisites
 
-In order to run this template in AWS, you will need to do some legwork. First, this template assumes you have Kong enterprise license. You can find CloudFormation templates in GitHub that are designed for use with Kong's open source
-offerings. That's the first thing that makes this template different from others you might find out in the wild.
+In order to run this template in AWS, you will need to do some legwork. First, this template assumes you have a Kong enterprise license. You can find CloudFormation templates in GitHub that are designed for use with Kong's open source offerings. That's the first thing that makes this template different from others you might find out in the wild.
 
 Here are some other things you're going to have to take care of before installing this template:
 
 1. You need an AWS account. Maybe this is obvious, but we'll state it explicitly anyway.
-2. You need an S3 bucket in AWS where you'll upload templates that are a child of the [full-stack.yaml](./templates/full-stack.yaml) template found in this repo. This means you'll also have to update the full-stack.yaml file (search for `<URI_to_S3_bucket>`) to have the child templates point to S3 using the `TemplateURL` property in the yaml file. This is required, because AWS does not allow very large templates to be run via the AWS CLI, so we split the template into its component pieces, created a top-level template, and referenced the child templates from S3. Simply copy the contents of the `templates` folder, excluding the full-stack.yaml file, to a `templates` folder in your S3 bucket. We feel it would be fine to make this bucket public, as there is no sensitive information in the template yaml files.
-3. You need an S3 bucket to store basic configuration files that are consumed by the template. You may use the same bucket as the one we created in the step above, having a `configs` directory within the bucket to separate the template files from the configuration files. Copy the contents of the `configs` folder to the `configs` folder in your S3 bucket. We feel it would be fine to make this bucket public, as there is no sensitive information in the configuration files. Then you'll have to update all references in this template to `<URI_to_S3_bucket>` to reflect the URI of the bucket you created.
-4. You need a domain. This also seems obvious. It doesn't matter where your domain comes from, as long as you own it. If your domain is managed using Route53 in the same AWS account as the one where you're deploying this template, this template will update your DNS records to point to the load balancer. If your domain is managed outside of the AWS account where you're deploying this template, send `false` as the `UpdateDNS` parameter, and update DNS yourself once the template has completed.
-5. You need an AWS Certificate Manager (ACM) certificate to apply to the application load balancer. The cert should have `<subdomain>.<domain>` as the primary name, and you should add `*.<subdomain>.<domain>` as a subject alternative name. For example, you might have `api.mycompany.com` and `*.api.mycompany.com`. The ARN of the ACM certificate is a parameter to the template.
-6. You need SMTP. Kong sends emails in response to requests for access. The SMTP parameters to this template are optional, but you will not have a fully-functional Kong instance if Kong can't send emails. We are using the AWS Simple Email Service (SES).
-7. You need an EC2 Key Pair you'll use to access your Kong, Brain/Immunity, and PGBouncer nodes. Add one prior to running the template, and pass the Key Pair in as the `KongKeyName` parameter.
+2. You need an S3 bucket in AWS where you'll upload templates that are children of the [full-stack.yaml](./templates/full-stack.yaml) template found in this repo. This means you'll also have to update the full-stack.yaml file (search for `<URI_to_S3_bucket>`) to have the child templates point to S3 using the `TemplateURL` property in the yaml file. This is required, because AWS does not allow very large templates to be run via the AWS CLI, so we split the template into its component pieces, created a top-level template, and referenced the child templates from S3. Simply copy the contents of the `templates` folder, excluding the full-stack.yaml file, to a `templates` folder in your S3 bucket. We feel it would be fine to make this bucket public, as there is no sensitive information in the template yaml files.
+3. You need an S3 bucket to store basic configuration files that are consumed by the template. You may use the same bucket as the one you created in the step above, having a `configs` directory within the bucket to separate the template files from the configuration files. Copy the contents of the `configs` folder in this repo to the `configs` folder in your S3 bucket. We feel it would be fine to make this bucket public, as there is no sensitive information in the configuration files. Then you'll have to update all references to `<URI_to_S3_bucket>` (do a global search in this repo) in this repo to reflect the URI of the bucket you created.
+4. You need a domain. This also seems obvious. It doesn't matter where your domain comes from, as long as you own it. If your domain is managed using Route53 in the same AWS account as the one where you're deploying this template, this template will update your DNS records to point to the application load balancer. If your domain is managed outside of the AWS account where you're deploying this template, send `false` as the `UpdateDNS` parameter, and update DNS yourself once the template has completed.
+5. You need an AWS Certificate Manager (ACM) certificate to apply to the application load balancer. The cert should have `<subdomain>.<domain>` as the primary name, and you should add `*.<subdomain>.<domain>` as a subject alternative name. For example, you might have `api.mycompany.com` and `*.api.mycompany.com`. The ARN of the ACM certificate is a parameter to the full-stack template.
+6. You need SMTP. Kong sends emails in response to requests for access. We are use the AWS Simple Email Service (SES), but you can use any SMTP provider you like. You will have to supply all SMTP parameters to the full-stack template in order for the template to succeed.
+7. You need an EC2 key pair you'll use to access your Kong, Brain/Immunity, and PGBouncer nodes. Add one prior to running the template (in the EC2 section of AWS), and pass the key pair name in as the `KongKeyName` parameter.
 
 ## Parameters
 
@@ -105,6 +104,48 @@ We also like to add the `--disable-rollback` option to this call, because you kn
 
 Once your template completes successfully, simply visit the `Outputs` tab of the `KongStack` child stack in CloudFormation. That tab will contain an output called `AdminGuiURL`. Simply click that URL, supply `kong_admin` as the user, and supply the `KongAdminPassword` from your parameters as the password to the website.
 
+## Connecting to an EC2 node in your deployment
+
+There are three different types of EC2 nodes in play here:
+
+1. Kong nodes
+2. Brain/Immunity nodes (sometimes referred to as collector nodes in this repo)
+3. PGBouncer nodes
+
+Connecting to any of these can be set up easily. We have supplied a script that will write the required ssh config to your machine.
+
+First, open the `getSSHConf.sh` script (in the `scripts` folder), and replace `<ec2_key_pair_name>` with the name of the EC2 key pair you created as a prerequisite to running this template.
+
+Next, copy the .pem file that contains your key pair to the ~/.ssh folder.
+
+Then run the script as follows, where <stack_name> is the name of the top-level CloudFormation template you provided when you created the stack:
+
+```bash
+./getSSHConf.sh <stack_name> > ~/.ssh/kong-config
+```
+
+Now you can take a look at ~/.ssh/kong-config. Notice that it has given a name to each of your EC2 nodes. Kong nodes will be named kong1 through kongN where N is the number of Kong instances you deployed to the Kong cluster.
+
+So to ssh to Kong node 1, run the following:
+
+```bash
+ssh kong1
+```
+
+The ssh config will also create the following other names for you:
+
+1. lb = Linux bastion
+2. ctl = controller (Brain/Immunity) node
+3. pgb = PGBouncer node
+
+So to ssh to one of these other node types, it would look something like this:
+
+```bash
+ssh lb
+ssh ctl1
+ssh pgb2
+```
+
 ## Debugging your Kong instance
 
 To determine if there was a problem with the auto scaling group initialization script, run the following command once you have an ssh session connected to one of the Kong nodes.
@@ -140,4 +181,14 @@ source kong-env
 /usr/local/bin/kong restart
 ```
 
-IT IS VERY IMPORTANT THAT YOU SOURCE THE kong-env FILE. IF YOU DO NOT, KONG WILL NOT HAVE ALL THE VALUES IT NEEDS TO START SUCCESSFULLY.
+IT IS VERY IMPORTANT THAT YOU SOURCE THE kong-env FILE. IF YOU DO NOT, KONG WILL NOT HAVE ALL THE VALUES IT NEEDS TO RESTART SUCCESSFULLY.
+
+## Deleting a Kong CloudFormation stack
+
+To delete a stack, of course you can visit the AWS console or use the AWS CLI. However, keep in mind that we have enabled delete protection on all database instances by default. We have supplied a script that will disable delete protection for all RDS instances to make it possible for you to delete your Kong stack. Of course, you could also visit the RDS console in AWS to remove delete protection manually, but running the following script is easier:
+
+```bash
+./scripts/removeRDSDeleteProtection.sh <stack_name>
+```
+
+The `<stack_name>` is the name you provided when you created the CloudFormation stack.
