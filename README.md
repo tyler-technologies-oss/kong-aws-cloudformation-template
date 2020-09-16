@@ -56,7 +56,7 @@ Yes. You're right. There are a lot of parameters, but keep in mind this template
 
 * Subdomain: The subdomain of your site. For instance, you could use `dev` for your development environment. Someone trying to reach an API would call `dev.api.yourcompany.com`.
 
-* KongTLSCertArn: The AWS arn of the cert you'll use for TLS on your load balancer
+* KongTLSCertArn: The AWS ARN of the ACM certificate you'll use for TLS on your load balancer
 
 * KongKeyName: This is the name of the pem file (key pair created in EC2) you'll use to connect to the linux bastion that will give you access to ssh into the AWS nodes running Kong, Brain/Immunity, and PGBouncer.
 
@@ -76,11 +76,11 @@ Yes. You're right. There are a lot of parameters, but keep in mind this template
 
 * SMTPDomain: SMTP domain you'll find in AWS SES under the "Domains" tab
 
-* SMTPAdminEmails: The email addresses of the SES admins you've created. You'll find those in the "Email Addresses" tab of AWS SES.
+* SMTPAdminEmails: A comma-delimited list of email addresses of the SES admins you've created. You'll find those in the "Email Addresses" tab of AWS SES.
 
 * EmailsFrom: The address you want to see in emails sent to users. This will be something like "Kong Admin <admin@api.yourcompany.com>"
 
-* EmailsReplyTo: The reply address users will see in emails they receive. This will be something like "No Reply <no-reply@api.yourcompany.com>", because users shouldn't be able to reply to automated emails.
+* EmailsReplyTo: The reply address users will see in emails they receive. This will be something like "No Reply <no-reply@api.yourcompany.com>", because users will not be able to reply to automated emails.
 
 We have provided two example parameter files in the `parameters` folder. The first, kong-enterprise-prod.parameters, contains recommended settings for running a large-scale, enterprise, production Kong cluster. The second, kong-enterprise-small.parameters, contains recommended settings for running a smaller-scale, development Kong cluster.
 
@@ -88,7 +88,7 @@ We have provided two example parameter files in the `parameters` folder. The fir
 
 Of course, you can use the CloudFormation user interface, supplying the full-stack.yaml as the template file, to kick off this template.
 
-You may also use the AWS CLI V2 to kick off this template with a command similar to the following:
+The better option is to use the AWS CLI V2 to kick off this template with a command similar to the following:
 
 ```bash
 aws cloudformation create-stack \
@@ -116,9 +116,9 @@ Connecting to any of these can be set up easily. We have supplied a script that 
 
 First, open the `getSSHConf.sh` script (in the `scripts` folder), and replace `<ec2_key_pair_name>` with the name of the EC2 key pair you created as a prerequisite to running this template.
 
-Next, copy the .pem file that contains your key pair to the ~/.ssh folder.
+Next, copy the .pem file that contains your key pair to your ~/.ssh folder.
 
-Then run the script as follows, where <stack_name> is the name of the top-level CloudFormation template you provided when you created the stack:
+Then run the script as follows, where <stack_name> is the name of the CloudFormation stack you provided when you created it:
 
 ```bash
 ./getSSHConf.sh <stack_name> > ~/.ssh/kong-config
@@ -185,7 +185,7 @@ IT IS VERY IMPORTANT THAT YOU SOURCE THE kong-env FILE. IF YOU DO NOT, KONG WILL
 
 ## Deleting a Kong CloudFormation stack
 
-To delete a stack, of course you can visit the AWS console or use the AWS CLI. However, keep in mind that we have enabled delete protection on all database instances by default. We have supplied a script that will disable delete protection for all RDS instances to make it possible for you to delete your Kong stack. Of course, you could also visit the RDS console in AWS to remove delete protection manually, but running the following script is easier:
+To delete a stack, of course you can visit the AWS console or use the AWS CLI. However, keep in mind that we have enabled delete protection on all database instances by default. We have supplied a script that will disable delete protection for all RDS instances associated with your CloudFormation stack to make it possible for you to delete your Kong stack. Of course, you could also visit the RDS console in AWS to remove delete protection manually, but running the following script is easier:
 
 ```bash
 ./scripts/removeRDSDeleteProtection.sh <stack_name>
